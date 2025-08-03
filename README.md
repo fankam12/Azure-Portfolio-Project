@@ -1,4 +1,4 @@
-# Azure-Portfolio-Project
+
 # Azure Portfolio Project — HomeLabRG
 
 This is a step-by-step Azure cloud infrastructure project designed to reinforce my learning for the **AZ-104: Microsoft Azure Administrator** certification. The project is built using **Azure PowerShell CLI** and deployed via the Azure Portal.
