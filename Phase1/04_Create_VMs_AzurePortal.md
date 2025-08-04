@@ -1,36 +1,62 @@
-# Step 4 – Create Virtual Machines (via Azure PowerShell)
+# Step 4 – Create Virtual Machines (via Azure Portal)
 
-In this step, we create up to four virtual machines inside the `HomeLabRG` resource group, associate them with the same subnet (`HomeLabSubnet`), virtual network (`HomeLabVNet`), and apply the existing network security group (`HomeLabNSG`) to their network interfaces.
+In this step, we will manually create four virtual machines inside the `HomeLabRG` resource group using the **Azure Portal**. Each VM will be placed in the same virtual network (`HomeLabVNet`), subnet (`HomeLabSubnet`), and later associated with a shared Network Security Group (`HomeLabNSG`).
 
-## 💻 Azure PowerShell Commands
-```powershell
-# ---------------------------------------------
-# Set common configuration variables
-# ---------------------------------------------
-$resourceGroup = "HomeLabRG"
-$location = "East US"
-$vnet = Get-AzVirtualNetwork -Name "HomeLabVNet" -ResourceGroupName $resourceGroup
-$subnet = Get-AzVirtualNetworkSubnetConfig -Name "HomeLabSubnet" -VirtualNetwork $vnet
-$nsg = Get-AzNetworkSecurityGroup -Name "HomeLabNSG" -ResourceGroupName $resourceGroup
+## 🧾 Instructions
 
-# ---------------------------------------------
-# Loop to Create 4 VMs: HomeLabVM01–HomeLabVM04
-# ---------------------------------------------
-1..4 | ForEach-Object {
-    $vmName = "HomeLabVM0$_"
-    $nicName = "$vmName-NIC"
+1. **Log in to the Azure Portal**  
+   Go to: [https://portal.azure.com](https://portal.azure.com)
 
-    # Create NIC and associate with subnet and NSG
-    $nic = New-AzNetworkInterface -Name $nicName `
-        -ResourceGroupName $resourceGroup -Location $location `
-        -SubnetId $subnet.Id -NetworkSecurityGroupId $nsg.Id
+2. **Navigate to Virtual Machines**  
+   In the search bar, type and select **Virtual Machines**
 
-    # Define VM configuration
-    $vmConfig = New-AzVMConfig -VMName $vmName -VMSize "Standard_B1s" |
-        Set-AzVMOperatingSystem -Linux -ComputerName $vmName -Credential (Get-Credential) |
-        Set-AzVMSourceImage -PublisherName "Canonical" -Offer "UbuntuServer" -Skus "20_04-lts" -Version "latest" |
-        Add-AzVMNetworkInterface -Id $nic.Id
+3. **Click `+ Create > Azure virtual machine`**
 
-    # Create the VM
-    New-AzVM -ResourceGroupName $resourceGroup -Location $location -VM $vmConfig
-}
+---
+
+### 🔧 **Basics Tab**
+- **Subscription**: Select your active subscription  
+- **Resource group**: `HomeLabRG`  
+- **Virtual machine name**: e.g., `HomeLabVM01`, `HomeLabVM02`, etc.  
+- **Region**: `East US` (same as other resources)  
+- **Availability options**: Leave as **default**  
+- **Image**:  
+  - Windows: Choose **Windows Server 2019** or **2022**  
+  - Linux: Choose **Ubuntu LTS** or **Red Hat Enterprise Linux**  
+- **Size**: Select a small size like **Standard B1s**  
+- **Authentication type**:  
+  - Windows: **Password**  
+  - Linux: **SSH public key** or **Password**  
+- **Username**: e.g., `azureuser`  
+- **Password**: Use a strong password (save it)  
+- **Public inbound ports**: Select **Allow selected ports**  
+  - Windows: Select **RDP (3389)**  
+  - Linux: Select **SSH (22)**
+
+---
+
+### 💾 **Disks Tab**
+- Leave all default options (Standard SSD or Premium SSD)
+
+---
+
+### 🌐 **Networking Tab**
+- **Virtual network**: Select or create `HomeLabVNet`  
+- **Subnet**: Select `HomeLabSubnet` (ensure all VMs use the same subnet)  
+- **Public IP**: Choose **Yes**  
+- **NIC network security group**: Select **None** (you will attach `HomeLabNSG` later)  
+- **Accelerated networking**: Leave as **default**  
+- **Load balancing**: Select **No**
+
+---
+
+### 🛠️ **Management, Advanced, and Tags Tabs**
+- Leave all default options  
+- Optional: Add a tag `Environment: HomeLab`
+
+---
+
+### ✅ **Review + Create**
+- Review configuration summary  
+- Click **Create**  
+- Repeat steps to create all four VMs (`HomeLabVM01` through `HomeLabVM04`)
