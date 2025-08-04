@@ -10,5 +10,6 @@ The VNet allows all VMs to exist within a private, isolated network.
 ## 💻 Azure PowerShell Commands
 ```powershell
 $subnetConfig = New-AzVirtualNetworkSubnetConfig -Name HomeLabSubnet -AddressPrefix "10.0.0.0/24"
+
 New-AzVirtualNetwork -Name HomeLabVNet -ResourceGroupName HomeLabRG -Location "East US" `
     -AddressPrefix "10.0.0.0/16" -Subnet $subnetConfig
