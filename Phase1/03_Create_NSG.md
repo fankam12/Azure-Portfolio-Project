@@ -1,31 +1,62 @@
 # Step 3 – Create Network Security Group (NSG)
 
-An NSG is used to control inbound and outbound traffic to network interfaces, VMs, and subnets.
+In this step, we retrieve the existing Network Security Group (HomeLabNSG) and configure inbound rules to allow secure remote access and internal VM communication. Rules are added to allow:
+Remote Desktop Protocol (RDP) access for Windows VMs
+Secure Shell (SSH) access for Linux VMs
+ICMP (Ping) traffic for basic connectivity testing
+Internal communication between VMs on the same virtual network
 
 ## 💻 Azure PowerShell Commands
 ```powershell
 # ---------------------------------------------
-# Create a Network Security Group named 'HomeLabNSG'
+# Set your current public IP address
 # ---------------------------------------------
-New-AzNetworkSecurityGroup -ResourceGroupName HomeLabRG -Location "East US" -Name HomeLabNSG
 
+$myIP = "YOUR_PUBLIC_IP/32"
 
 # ---------------------------------------------
-# Create Inbound Rule to Allow Internal Subnet Communication
+# Retrieve the existing Network Security Group
 # ---------------------------------------------
-$nsgRule = New-AzNetworkSecurityRuleConfig -Name "Allow-Internal-Subnet" `
+
+$nsg = Get-AzNetworkSecurityGroup -Name "HomeLabNSG" -ResourceGroupName "HomeLabRG"
+
+# ---------------------------------------------
+# Add Inbound Rule to Allow RDP (TCP 3389) from your IP
+# ---------------------------------------------
+
+$nsg.SecurityRules += New-AzNetworkSecurityRuleConfig -Name "Allow-RDP" -Protocol "Tcp" -Direction "Inbound" `
+  -Priority 1000 -SourceAddressPrefix $myIP -SourcePortRange "*" -DestinationPortRange 3389 `
+  -Access "Allow" -DestinationAddressPrefix "*"
+
+# ---------------------------------------------
+# Add Inbound Rule to Allow SSH (TCP 22) from your IP
+# ---------------------------------------------
+
+$nsg.SecurityRules += New-AzNetworkSecurityRuleConfig -Name "Allow-SSH" -Protocol "Tcp" -Direction "Inbound" `
+  -Priority 1001 -SourceAddressPrefix $myIP -SourcePortRange "*" -DestinationPortRange 22 `
+  -Access "Allow" -DestinationAddressPrefix "*"
+
+# ---------------------------------------------
+# Add Inbound Rule to Allow Ping (ICMP)
+# ---------------------------------------------
+
+$nsg.SecurityRules += New-AzNetworkSecurityRuleConfig -Name "Allow-Ping" -Protocol "Icmp" -Direction "Inbound" `
+  -Priority 1002 -SourceAddressPrefix "*" -SourcePortRange "*" -DestinationPortRange "*" `
+  -Access "Allow" -DestinationAddressPrefix "*"
+
+# ---------------------------------------------
+# Add Inbound Rule to Allow Internal Subnet Communication
+# ---------------------------------------------
+
+$nsg.SecurityRules += New-AzNetworkSecurityRuleConfig -Name "Allow-Internal-Subnet" `
   -Description "Allow VMs to talk to each other within the Virtual Network" `
-  -Access Allow -Protocol * -Direction Inbound -Priority 100 `
-  -SourceAddressPrefix "VirtualNetwork" -SourcePortRange * `
+  -Access "Allow" -Protocol "*" -Direction "Inbound" -Priority 100 `
+  -SourceAddressPrefix "VirtualNetwork" -SourcePortRange "*" `
   -DestinationAddressPrefix "VirtualNetwork" -DestinationPortRange "*"
-
-# ---------------------------------------------
-# Retrieve the NSG and Add the Inbound Rule
-# ---------------------------------------------
-$nsg = Get-AzNetworkSecurityGroup -Name HomeLabNSG -ResourceGroupName HomeLabRG
-$nsg.SecurityRules.Add($nsgRule)
 
 # ---------------------------------------------
 # Apply the Updated Rule Set to the NSG
 # ---------------------------------------------
+
 Set-AzNetworkSecurityGroup -NetworkSecurityGroup $nsg
+
