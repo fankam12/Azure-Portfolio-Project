@@ -1,8 +1,6 @@
 
 # Azure Portfolio Project — Home lab Infrastructure
 
-# Azure AZ-104 Home Lab Portfolio
-
 This repository documents a **hands-on, production-aligned Azure home lab** designed to reinforce **all domains of the AZ-104: Microsoft Azure Administrator certification**.  
 
 The lab simulates a **secure, cost-aware, enterprise-style Azure environment** using **Azure Portal** and **Azure PowerShell**, with a strong emphasis on governance, networking, security, monitoring, and automation.
