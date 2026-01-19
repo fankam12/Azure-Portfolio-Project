@@ -25,18 +25,21 @@ Azure Subscription: HomeLab
 │
 ├── Resource Group: HomeLabRG
 │
-├── Azure Budget
-│ ├── 70% Cost Alert
-│ ├── 85% Cost Alert
-│ └── 100% Cost Alert
+├── Azure Budgets
+│   ├── HomeLab-Monthly-Budget
+│   │   ├── Warning Alert – 70%
+│   │   ├── High Alert – 85%
+│   │   └── Critical Alert – 100%
 │
 ├── Azure Policy Assignments
-│ ├── Allowed Locations (East US, East US 2)
-│ ├── Required Resource Tags
-│ └── Public IP Restrictions (future use)
+│   ├── Allowed Locations
+│   │   └── East US, East US 2
+│   ├── Required Resource Tags
+│   └── Public IP Restrictions (future)
 │
-└── Action Group
-└── Email Notifications
+└── Action Groups
+    └── HomeLab-Cost-Alerts
+        └── Email Notifications
 
 
 This architecture will expand in future labs to include networking, compute, storage, and monitoring resources.
