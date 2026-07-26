@@ -1,104 +1,120 @@
-# Azure Portfolio Project — Azure CLI & Bicep Home Lab Infrastructure
+# Azure Portfolio Project — Cloud Infrastructure Automation with Azure CLI & Bicep
 
-This repository documents a hands-on, production-aligned Azure home lab designed to reinforce Azure administration, cloud engineering, and Infrastructure-as-Code (IaC) skills aligned with the AZ-104: Microsoft Azure Administrator and AZ-305: Azure Solutions Architect certification paths.
+## About This Project
 
-The lab simulates a secure, cost-conscious enterprise Azure environment using:
+This repository documents a production-aligned Azure infrastructure project focused on cloud engineering practices, Infrastructure-as-Code automation, governance, networking, security, and operational management.
 
-- Azure CLI for resource provisioning and operational automation
-- Azure Bicep for declarative Infrastructure-as-Code deployments
-- Azure Portal for validation, monitoring, troubleshooting, and verification only
+The environment demonstrates how Azure resources can be designed, deployed, secured, and managed using:
 
-The goal of this project is to demonstrate real-world Azure deployment practices used by cloud engineers, including repeatable infrastructure deployments, governance enforcement, network security, and operational management.
+- Azure CLI for infrastructure operations and automation
+- Azure Bicep for repeatable Infrastructure-as-Code deployments
+- Azure Resource Manager for deployment orchestration
+- Azure Portal for validation, monitoring, troubleshooting, and operational visibility
+
+The goal of this project is to showcase enterprise-style Azure implementation patterns used by Cloud Engineers, Platform Engineers, and Azure Solutions Architects.
+
+---
+
+# ☁️ Cloud Engineering Focus
+
+This project focuses on building hands-on experience with:
+
+- Azure Infrastructure-as-Code using Bicep
+- Azure CLI automation workflows
+- Azure networking architecture
+- Cloud security best practices
+- Azure governance and policy enforcement
+- Identity and access management
+- Compute and storage deployment
+- Monitoring and operational management
+- Cost optimization strategies
+
+The architecture follows Microsoft Azure best practices with an emphasis on secure, scalable, and repeatable deployments.
 
 ---
 
 # 🔍 Project Overview
 
-The objective of this project is to build and continuously evolve a realistic Azure environment that mirrors how organizations design, deploy, secure, and manage cloud infrastructure.
+The objective of this project is to build and evolve a realistic Azure environment that reflects how organizations deploy and operate cloud infrastructure.
 
-All infrastructure changes are performed through:
+All infrastructure deployments are performed using:
 
 - Azure CLI commands
 - Azure Bicep templates
-- Git-based version control workflows
+- Git-based version control
 
 Azure Portal is used only for:
 
-- Deployment validation
-- Resource verification
+- Deployment verification
+- Resource validation
 - Monitoring dashboards
-- Reviewing logs and alerts
+- Reviewing metrics and logs
 - Troubleshooting configuration issues
 
-The lab is structured around two primary resource groups within a single Azure subscription.
+
+The environment is structured into two resource groups representing different operational purposes:
+
+---
+
+# 🏗️ Azure Environment Architecture
 
 ## Azure Subscription
 
 **Subscription Name:** HomeLab
 
+---
+
 ## Resource Groups
 
 ### HomeLab_rg
 
-**Environment Tag:** prod
+**Environment Tag:** `prod`
 
 Purpose:
-- Core enterprise-style Azure environment
-- Foundational networking and security components
-- Shared services
-- Production-like infrastructure scenarios
 
-Planned Resources:
-- Hub networking components
+Primary production-style Azure environment containing shared infrastructure and enterprise services.
+
+Planned and implemented resources:
+
+- Core networking components
+- Hub virtual network
+- Security services
 - Azure Firewall
-- Jump Box VM
-- Shared monitoring services
-- Identity and governance services
+- Jump Box administrative access
+- Monitoring services
+- Shared infrastructure components
 
+---
 
 ### DevLab_RG
 
-**Environment Tag:** testing
+**Environment Tag:** `testing`
 
 Purpose:
-- Development and experimentation environment
-- Testing Azure CLI commands
-- Validating Bicep templates before production deployment
-- Learning new Azure services safely
 
-Planned Resources:
-- Application workloads
+Development and testing environment used for validating Azure CLI commands, Bicep templates, and infrastructure changes before production deployment.
+
+Planned and implemented resources:
+
 - Test virtual machines
-- Storage services
-- Network configurations
-- Automation experiments
+- Application workloads
+- Storage resources
+- Network testing scenarios
+- Bicep deployment validation
 
+---
 
-All resources are deployed primarily in:
+# 🌎 Azure Regions
+
+Primary deployment regions:
 
 - East US
 - East US 2
 
-Resource governance is enforced through Azure Policy, tagging standards, budgets, and monitoring controls.
+Regional governance is enforced through Azure Policy and deployment standards.
 
 ---
 
-# 🎯 Project Goals
+# 🧱 Infrastructure Architecture
 
-- Build Azure infrastructure using Azure CLI and Bicep only
-- Develop repeatable Infrastructure-as-Code deployment practices
-- Reinforce AZ-104 Azure Administrator objectives through hands-on labs
-- Build architecture skills aligned with AZ-305 Azure Solutions Architect
-- Implement enterprise Azure networking and security patterns
-- Automate resource provisioning and configuration
-- Apply Azure governance and cost-management best practices
-- Maintain a monthly cloud spend target of $80–$100 (hard cap: $120)
-- Create professional documentation and architecture diagrams suitable for a cloud engineering portfolio
-
----
-
-# 🧱 Core Architecture
-
-## Deployment Model
-
-All infrastructure follows an Infrastructure-as-Code approach:
+The environment follows a simplified enterprise architecture model:
