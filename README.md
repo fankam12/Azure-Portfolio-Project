@@ -1,116 +1,104 @@
+# Azure Portfolio Project — Azure CLI & Bicep Home Lab Infrastructure
 
-# Azure Portfolio Project — Home lab Infrastructure
+This repository documents a hands-on, production-aligned Azure home lab designed to reinforce Azure administration, cloud engineering, and Infrastructure-as-Code (IaC) skills aligned with the AZ-104: Microsoft Azure Administrator and AZ-305: Azure Solutions Architect certification paths.
 
-This repository documents a **hands-on, production-aligned Azure home lab** designed to reinforce **all domains of the AZ-104: Microsoft Azure Administrator certification**.  
+The lab simulates a secure, cost-conscious enterprise Azure environment using:
 
-The lab simulates a **secure, cost-aware, enterprise-style Azure environment** using **Azure Portal** and **Azure PowerShell**, with a strong emphasis on governance, networking, security, monitoring, and automation.
+- Azure CLI for resource provisioning and operational automation
+- Azure Bicep for declarative Infrastructure-as-Code deployments
+- Azure Portal for validation, monitoring, troubleshooting, and verification only
 
----
-
-## 🔍 Project Overview
-
-The objective of this project is to build and evolve a realistic Azure environment that mirrors how organizations design, secure, and operate cloud infrastructure in production.
-
-The lab is structured around **two primary resource groups** within a single Azure subscription:
-
-- **HomeLabRG** – Core learning and experimentation environment  
-- **ProdHome** – A controlled, production-like environment for larger-scale scenarios  
-
-All resources are deployed in **East US** and **East US 2** and governed through **Azure Policy**, **budgets**, and **monitoring alerts** to enforce cost control and regional compliance.
-
-This project grows incrementally through structured labs, each aligned to specific **AZ-104 exam objectives** and **real-world cloud engineering responsibilities**.
+The goal of this project is to demonstrate real-world Azure deployment practices used by cloud engineers, including repeatable infrastructure deployments, governance enforcement, network security, and operational management.
 
 ---
 
-## 🎯 Project Goals
+# 🔍 Project Overview
 
-- Reinforce **all AZ-104 exam domains** through hands-on, scenario-driven labs  
-- Build strong operational skills using **Azure Portal** and **Azure PowerShell**  
-- Apply **Azure best practices** for security, networking, governance, and cost management  
-- Simulate a real organizational Azure ecosystem with segmented environments  
-- Maintain a **monthly cost target of $80–$100** (hard cap at $120)  
-- Produce **professional-quality documentation and architecture diagrams** suitable for a public portfolio  
+The objective of this project is to build and continuously evolve a realistic Azure environment that mirrors how organizations design, deploy, secure, and manage cloud infrastructure.
 
----
+All infrastructure changes are performed through:
 
-## 🧱 Core Architecture (Evolving)
+- Azure CLI commands
+- Azure Bicep templates
+- Git-based version control workflows
 
-### Subscription
-- **Subscription Name:** HomeLab
+Azure Portal is used only for:
 
-### Resource Groups
+- Deployment validation
+- Resource verification
+- Monitoring dashboards
+- Reviewing logs and alerts
+- Troubleshooting configuration issues
 
-#### HomeLabRG
-- Primary lab environment  
-- Foundational networking, security, and identity services  
-- **4–6 virtual machines**
+The lab is structured around two primary resource groups within a single Azure subscription.
 
-#### ProdHome
-- Production-style environment  
-- **2–6 virtual machines**  
-- Secure connectivity to **HomeLabRG**
+## Azure Subscription
 
----
+**Subscription Name:** HomeLab
 
-## 🌐 Networking & Security (Planned / Implemented)
+## Resource Groups
 
-- Hub-and-spoke virtual network architecture  
-- Dedicated **Jump Box VM** for secure administrative access  
-- Network Security Groups (NSGs)  
-- Azure Firewall with firewall policies  
-- User-defined routes (UDRs)  
-- Private IP–only workloads where possible  
-- Secure inter-resource group communication  
+### HomeLab_rg
 
----
+**Environment Tag:** prod
 
-## 🔐 Governance, Security & Cost Management
+Purpose:
+- Core enterprise-style Azure environment
+- Foundational networking and security components
+- Shared services
+- Production-like infrastructure scenarios
 
-### Azure Policy
-- Restrict resource deployment to **East US** and **East US 2**  
-- Enforce standardized **resource tagging**
+Planned Resources:
+- Hub networking components
+- Azure Firewall
+- Jump Box VM
+- Shared monitoring services
+- Identity and governance services
 
-### Azure Budgets & Alerts
-- Monthly budget: **$100**
-  - Alerts at **50%**, **75%**, and **90%**  
-- Cost anomaly alerts
 
-### Operational Controls
-- VM auto-shutdown schedules  
-- Manual VM deallocation after lab usage  
+### DevLab_RG
 
-### Monitoring
-- Azure Monitor  
-- Log Analytics Workspace  
-- Custom dashboards  
-- Activity log alerts  
+**Environment Tag:** testing
 
----
+Purpose:
+- Development and experimentation environment
+- Testing Azure CLI commands
+- Validating Bicep templates before production deployment
+- Learning new Azure services safely
 
-## 🖥️ Compute Strategy
+Planned Resources:
+- Application workloads
+- Test virtual machines
+- Storage services
+- Network configurations
+- Automation experiments
 
-- Mix of **Windows Server** and **Linux** virtual machines  
-- VM sizing optimized for cost (B-series where applicable)  
-- Jump box pattern for secure access  
-- Minimal public exposure (no direct RDP/SSH to workload VMs)  
+
+All resources are deployed primarily in:
+
+- East US
+- East US 2
+
+Resource governance is enforced through Azure Policy, tagging standards, budgets, and monitoring controls.
 
 ---
 
-## 📦 Automation & Infrastructure as Code
+# 🎯 Project Goals
 
-- **Azure PowerShell** (primary automation tool)  
-- Azure Portal (full step-by-step parity with PowerShell)  
-- Terraform (introduced in later phases)  
-- Scripts and templates stored in **Azure-based storage**  
+- Build Azure infrastructure using Azure CLI and Bicep only
+- Develop repeatable Infrastructure-as-Code deployment practices
+- Reinforce AZ-104 Azure Administrator objectives through hands-on labs
+- Build architecture skills aligned with AZ-305 Azure Solutions Architect
+- Implement enterprise Azure networking and security patterns
+- Automate resource provisioning and configuration
+- Apply Azure governance and cost-management best practices
+- Maintain a monthly cloud spend target of $80–$100 (hard cap: $120)
+- Create professional documentation and architecture diagrams suitable for a cloud engineering portfolio
 
 ---
 
-## 🚀 Why This Project Matters
+# 🧱 Core Architecture
 
-This home lab goes beyond exam preparation. It demonstrates **real-world Azure administration skills**, including secure architecture design, cost control, governance enforcement, and operational monitoring—skills expected of cloud engineers and Azure administrators in production environments.
+## Deployment Model
 
----
-
-## 📌 Status
-
-🟡 **In Progress** — The environment is actively expanding through structured lab phases.
+All infrastructure follows an Infrastructure-as-Code approach:
