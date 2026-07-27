@@ -66,7 +66,7 @@ The environment is structured into two resource groups representing different op
 
 ## Resource Groups
 
-### HomeLab_rg
+### HomeLab_RG
 
 **Environment Tag:** `prod`
 
