@@ -25,9 +25,10 @@ This project focuses on building hands-on experience with:
 - Cloud security best practices
 - Azure governance and policy enforcement
 - Identity and access management
-- Compute and storage deployment
+- Windows and Linux workload deployment
 - Monitoring and operational management
 - Cost optimization strategies
+- Production deployment workflows
 
 The architecture follows Microsoft Azure best practices with an emphasis on secure, scalable, and repeatable deployments.
 
@@ -52,7 +53,9 @@ Azure Portal is used only for:
 - Troubleshooting configuration issues
 
 
-The environment is structured into two resource groups representing different operational purposes:
+The environment follows a Dev/Test → Production deployment model.
+
+Infrastructure changes are developed and validated in the testing environment before being promoted into production.
 
 ---
 
@@ -64,51 +67,78 @@ The environment is structured into two resource groups representing different op
 
 ---
 
-## Resource Groups
+# Resource Groups
 
-### HomeLab_RG
+## HomeLab_RG
 
 **Environment Tag:** `prod`
 
 Purpose:
 
-Primary production-style Azure environment containing shared infrastructure and enterprise services.
+Primary production-style Azure environment used to host validated infrastructure configurations and production workloads.
+
+Infrastructure changes are promoted into `HomeLab_RG` only after successful validation in `DevLab_RG`.
+
+Production deployment workflow:
+
+```
+Develop Configuration
+        |
+        |
+Deploy & Validate in DevLab_RG
+        |
+        |
+Review Changes & Troubleshoot
+        |
+        |
+Promote Approved Configuration
+        |
+        |
+Deploy to HomeLab_RG
+```
 
 Planned and implemented resources:
 
-- Core networking components
-- Hub virtual network
-- Security services
-- Azure Firewall
-- Jump Box administrative access
+- Production Virtual Network
+- Production subnet
+- Network Security Groups (NSGs)
+- Windows Server virtual machine
+- Linux virtual machine
 - Monitoring services
-- Shared infrastructure components
+- Production workloads
 
 ---
 
-### DevLab_RG
+## DevLab_RG
 
 **Environment Tag:** `testing`
 
 Purpose:
 
-Development and testing environment used for validating Azure CLI commands, Bicep templates, and infrastructure changes before production deployment.
+Development and testing environment used for validating Azure CLI commands, Bicep templates, networking configurations, and infrastructure changes before production deployment.
+
+This isolated environment prevents failed deployments or configuration changes from impacting production resources.
 
 Planned and implemented resources:
 
-- Test virtual machines
-- Application workloads
-- Storage resources
-- Network testing scenarios
+- Development Virtual Network
+- Development subnet
+- Network Security Groups (NSGs)
+- Windows Server virtual machine
+- Linux virtual machine
+- Testing workloads
 - Bicep deployment validation
 
 ---
 
 # 🌎 Azure Regions
 
-Primary deployment regions:
+Primary deployment region:
 
 - East US
+
+Secondary region (future expansion):
+
 - East US 2
 
 Regional governance is enforced through Azure Policy and deployment standards.
@@ -117,4 +147,321 @@ Regional governance is enforced through Azure Policy and deployment standards.
 
 # 🧱 Infrastructure Architecture
 
-The environment follows a simplified enterprise architecture model:
+The environment follows a simplified enterprise architecture model designed to demonstrate production-aligned Azure deployment practices while maintaining cost efficiency.
+
+The architecture uses separate Azure Virtual Networks for development and production environments.
+
+```
+Azure Subscription: HomeLab
+
+|
+|
+|-- DevLab_RG
+|     Environment: testing
+|
+|     DevLab-VNet
+|
+|     |-- DevSubnet
+|          |
+|          |-- Windows Server VM
+|          |-- Linux Server VM
+|
+|     |
+|     VNet Peering
+|
+|
+|-- HomeLab_RG
+      Environment: prod
+
+      HomeLab-VNet
+
+      |-- ProdSubnet
+           |
+           |-- Windows Server VM
+           |-- Linux Server VM
+```
+
+---
+
+# 🌐 Networking Architecture
+
+The environment uses network segmentation to separate development and production workloads.
+
+## Virtual Networks
+
+### Development Network
+
+```
+VNet Name:
+DevLab-VNet
+
+Address Space:
+10.10.0.0/16
+```
+
+Purpose:
+
+- Testing infrastructure deployments
+- Validating Bicep templates
+- Testing application workloads
+
+
+### Production Network
+
+```
+VNet Name:
+HomeLab-VNet
+
+Address Space:
+10.20.0.0/16
+```
+
+Purpose:
+
+- Hosting validated workloads
+- Simulating production infrastructure
+
+
+---
+
+# Subnet Design
+
+## Development Subnet
+
+```
+Subnet Name:
+DevSubnet
+
+Address Range:
+10.10.1.0/24
+```
+
+Hosts:
+
+- Windows Server VM
+- Linux Server VM
+
+
+---
+
+## Production Subnet
+
+```
+Subnet Name:
+ProdSubnet
+
+Address Range:
+10.20.1.0/24
+```
+
+Hosts:
+
+- Windows Server VM
+- Linux Server VM
+
+
+---
+
+# 🔗 Network Connectivity
+
+The development and production environments communicate using:
+
+- Azure VNet Peering
+- Private IP communication
+- Network Security Group rules
+- Internal DNS resolution
+
+The goal is to simulate how enterprise environments securely connect isolated workloads.
+
+---
+
+# 🔐 Network Security Design
+
+Each subnet is protected using Network Security Groups.
+
+Security principles:
+
+- No unrestricted inbound internet access
+- Least privilege network rules
+- Controlled administrative access
+- Private communication between workloads
+
+
+Example:
+
+```
+DevSubnet NSG
+
+Allow:
+- Administrator access
+- Required internal communication
+
+Deny:
+- Unnecessary inbound traffic
+
+
+ProdSubnet NSG
+
+Allow:
+- Approved application communication
+- Administrative access
+
+Deny:
+- Direct public exposure
+```
+
+---
+
+# 🖥️ Compute Architecture
+
+The environment includes both Windows and Linux servers to simulate a mixed enterprise infrastructure environment.
+
+Target deployment:
+
+```
+Maximum Virtual Machines: 4
+
+Development:
+
+- Windows Server VM
+- Linux Server VM
+
+
+Production:
+
+- Windows Server VM
+- Linux Server VM
+```
+
+Compute design principles:
+
+- Cost-optimized VM sizing
+- B-series virtual machines where appropriate
+- VM auto-shutdown schedules
+- Manual deallocation after testing
+- Minimal public exposure
+
+---
+
+# 🧩 Identity & Domain Integration
+
+Future enhancements include:
+
+- Active Directory Domain Services
+- Windows domain joining
+- Centralized authentication
+- DNS integration
+- Role-based access control improvements
+
+Domain-joined workloads will communicate using:
+
+- Internal DNS
+- Active Directory authentication
+- Secure service-based access
+
+---
+
+# 📦 Infrastructure-as-Code Automation
+
+## Azure CLI
+
+Azure CLI is used for:
+
+- Resource group creation
+- Resource deployment
+- Network configuration
+- VM provisioning
+- Resource queries
+- Operational automation
+
+
+Example commands:
+
+```bash
+az group create
+
+az network vnet create
+
+az network vnet peering create
+
+az vm create
+
+az deployment group create
+```
+
+---
+
+# Azure Bicep
+
+Bicep is used for:
+
+- Declarative infrastructure deployment
+- Modular architecture
+- Repeatable environments
+- Version-controlled infrastructure
+
+
+Project structure:
+
+```
+bicep/
+
+├── main.bicep
+
+├── modules/
+
+│   ├── networking.bicep
+
+│   ├── compute.bicep
+
+│   ├── security.bicep
+
+│   └── monitoring.bicep
+
+└── parameters/
+
+    ├── dev.parameters.json
+
+    └── prod.parameters.json
+```
+---
+
+# 📊 Monitoring & Operations
+
+Azure Portal provides operational visibility for:
+
+- Azure Monitor
+- Log Analytics Workspace
+- Activity Logs
+- Alerts
+- Resource Health
+- Metrics
+
+Operational processes:
+
+- Validate deployments
+- Review resource health
+- Analyze logs
+- Monitor performance
+- Troubleshoot issues
+
+---
+
+# 💰 Cost Management
+
+The environment is designed with cost optimization in mind.
+
+Budget objectives:
+
+- Monthly target: $80–$100
+- Maximum budget limit: $120
+
+
+Controls implemented:
+
+- Azure Budgets
+- Cost alerts
+- VM auto-shutdown schedules
+- Manual VM deallocation
+- Right-sized VM SKUs
+- Removal of unused resources
