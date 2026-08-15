@@ -447,14 +447,23 @@ Operational processes:
 
 ---
 
-# 💰 Cost Management
+# 💰 Cost Management & FinOps
 
-The environment is designed with cost optimization in mind.
+Cost governance is implemented at the Azure subscription level to provide visibility into spending across development, testing, and production-style resources.
 
-Budget objectives:
+### Current Controls
 
-- Monthly target: $80–$100
-- Maximum budget limit: $120
+- $200 monthly subscription-level Azure Budget
+- Forecasted cost alert at 50%
+- Actual cost alert at 65%
+- VM auto-shutdown schedules
+- Manual VM deallocation when workloads are not required
+- Cost-conscious VM SKU selection
+- Removal of unused resources
+
+Budget monitoring provides early visibility into unexpected cloud spending while allowing the environment to continue supporting infrastructure testing and development.
+
+📖 [View Cost Management & Budget Alerting Documentation](docs/cost-management/budget-alerting.md)
 
 
 Controls implemented:
