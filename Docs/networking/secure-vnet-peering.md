@@ -272,6 +272,177 @@ Successful peering should report a `Connected` peering state.
 
 ---
 
+# Troubleshooting & Lessons Learned
+
+## Resource Resolution During NSG Association
+
+During network configuration, an issue occurred while associating the `ManagementSubnet-NSG` with `ManagementSubnet`.
+
+The initial subnet update returned an Azure Resource Manager `ResourceNotFound` error indicating that the specified virtual network could not be located within `HomeLab_RG`.
+
+```text id="err01"
+(ResourceNotFound) The Resource 'Microsoft.Network/virtualNetworks/HomeLab-VNet'
+under resource group 'HomeLab_RG' was not found.
+```
+
+### Investigation
+
+Rather than immediately recreating the resource, I first verified the existing Azure configuration to determine whether the issue was related to resource deployment, resource group placement, or naming.
+
+The available virtual networks were queried:
+
+```bash id="cmd01"
+az network vnet list -o table
+```
+
+The resources within the target resource group were also reviewed:
+
+```bash id="cmd02"
+az resource list --resource-group "HomeLab_RG" -o table
+```
+
+Once the VNet was identified, its configuration could be inspected directly:
+
+```bash id="cmd03"
+az network vnet show --resource-group "HomeLab_RG" --name "HomeLab_VNet" -o table
+```
+
+The subnet configuration was then verified:
+
+```bash id="cmd04"
+az network vnet subnet list --resource-group "HomeLab_RG" --vnet-name "<HomeLab_VNet" -o table
+```
+
+### Root Cause
+
+The troubleshooting process identified an inconsistency between the VNet name referenced by the Azure CLI command and the actual resource name deployed in Azure.
+
+Azure CLI commands must reference the exact Azure resource name. Small naming differences—such as using a hyphen instead of an underscore or referencing a planned name rather than the deployed name—can cause Azure Resource Manager to search for a resource that does not exist.
+
+For example:
+
+```text id="name01"
+HomeLab-VNet
+HomeLab_VNet
+```
+
+These represent different resource names.
+
+The issue was therefore not caused by VNet connectivity, NSG functionality, or subnet configuration. It was a resource identification issue.
+
+### Resolution
+
+After confirming the deployed resource names, the subnet update command was corrected to reference the actual VNet and NSG.
+
+```bash id="cmd05"
+az network vnet subnet update --resource-group "HomeLab_RG" --vnet-name "HomeLab_VNet" --name "ManagementSubnet" --network-security-group "ManagementSubnet-NSG"
+```
+
+### Validation
+
+Following the correction, the subnet configuration was queried again to verify the NSG association:
+
+```bash id="cmd06"
+az network vnet subnet show --resource-group "HomeLab_RG" --vnet-name "HomeLab_VNet" --name "ManagementSubnet" --query "{Subnet:name,AddressPrefix:addressPrefix,NetworkSecurityGroup:networkSecurityGroup.id}" -o json
+```
+
+This provided confirmation that the subnet existed under the expected VNet and that the intended Network Security Group was associated with it.
+
+---
+
+## Key Takeaways
+
+This issue reinforced several practices that are important when managing Azure infrastructure through the CLI:
+
+### Verify Before Recreating
+
+A `ResourceNotFound` response does not automatically mean the infrastructure needs to be redeployed.
+
+Before making changes, verify:
+
+```text id="flow01"
+Resource Group
+     ↓
+Resource
+     ↓
+Resource Name
+     ↓
+Resource Configuration
+     ↓
+Command Parameters
+```
+
+This reduces the risk of creating duplicate or unnecessary infrastructure while troubleshooting.
+
+### Treat Resource Names as Configuration
+
+Consistent naming becomes increasingly important as environments grow.
+
+A difference such as:
+
+```text id="name02"
+DevLab-VNet
+vs.
+DevLab_VNet
+```
+
+may appear minor to a person but represents a different resource identifier to automation tooling.
+
+Consistent naming conventions reduce errors across Azure CLI, Infrastructure as Code, deployment pipelines, and operational scripts.
+
+### Use Azure CLI for Discovery, Not Only Deployment
+
+The Azure CLI is useful not only for creating resources but also for investigating the current state of an environment.
+
+Commands such as:
+
+```bash id="cmd07"
+az resource list --resource-group "HomeLab_RG" -o table
+```
+
+and:
+
+```bash id="cmd08"
+az network vnet list -o table
+```
+
+can be used to establish what actually exists before executing configuration changes.
+
+This creates a more reliable troubleshooting workflow:
+
+```text id="flow02"
+Observe the Error
+       ↓
+Inspect Current State
+       ↓
+Verify Resource Scope
+       ↓
+Verify Resource Names
+       ↓
+Identify Root Cause
+       ↓
+Apply Correction
+       ↓
+Validate Final State
+```
+
+## Engineering Lesson
+
+The most valuable takeaway was not the corrected command itself, but the troubleshooting approach.
+
+When infrastructure automation fails, I want to distinguish between:
+
+* A resource that does not exist
+* A resource deployed into the wrong scope
+* An incorrect resource name
+* A configuration issue
+* A permissions issue
+* A networking issue
+* Incorrect CLI syntax
+
+By querying Azure's current state before making additional changes, the problem can be narrowed down systematically rather than troubleshooting through trial and error.
+
+
 # Security Model
 
 VNet peering and Network Security Groups serve different responsibilities within the architecture.
