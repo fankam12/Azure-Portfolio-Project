@@ -586,21 +586,23 @@ The lower priority numbers ensure that the explicit workload rules are evaluated
 
 ## VM Deployment
 
-The deployed virtual machines can be reviewed using:
+The deployed virtual machines were reviewed using:
 
 ```bash
-az vm list -d -o table
+az vm list -d --query "[].{VM:name,ResourceGroup:resourceGroup,PrivateIP:privateIps,PowerState:powerState}" -o table
 ```
 
-The expected compute architecture is:
+The environment returned:
 
 ```text
-Prod-mgmt01   10.10.0.4   Management Tier
-Dev-app01     10.20.1.4   Application Tier
-Dev-data01    10.20.2.4   Data Tier
+VM           ResourceGroup    PrivateIP    PowerState
+-----------  ---------------  -----------  ------------
+Dev-app01    DEVLAB_RG        10.20.1.4    VM running
+Dev-data01   DEVLAB_RG        10.20.2.4    VM running
+Prod-mgmt01  HOMELAB_RG       10.10.0.4    VM running
 ```
 
-All three planned Linux virtual machines are now deployed.
+All three planned Linux virtual machines were running.
 
 ---
 
@@ -642,17 +644,16 @@ Result:
 Dev-data01
 ```
 
-The Linux network interfaces were reviewed with:
+The private IP address was confirmed with:
 
 ```bash
-ip addr
+hostname -i
 ```
 
-The primary interface showed:
+Result:
 
 ```text
-eth0
-10.20.2.4/24
+10.20.2.4
 ```
 
 This confirmed that the guest operating system network configuration matched the Azure NIC configuration.
@@ -661,22 +662,54 @@ This confirmed that the guest operating system network configuration matched the
 
 ## Management-to-Application Connectivity
 
-From `Prod-mgmt01`, TCP/22 connectivity to the application VM was tested:
+Administrative access to `Dev-app01` was performed through `Prod-mgmt01`.
+
+From the administrator workstation:
 
 ```bash
-nc -zv 10.20.1.4 22
+ssh -A azureadmin@<PROD-MGMT01-PUBLIC-IP>
 ```
 
-Private SSH connectivity was then validated:
+From `Prod-mgmt01`:
 
 ```bash
-ssh <USERNAME>@10.20.1.4
+ssh azureadmin@10.20.1.4
+```
+
+The connection succeeded.
+
+The application VM hostname was verified:
+
+```bash
+hostname
+```
+
+Result:
+
+```text
+Dev-app01
+```
+
+The private address was verified:
+
+```bash
+hostname -I
+```
+
+Result:
+
+```text
+10.20.1.4
 ```
 
 The successful connection validated:
 
 ```text
+Administrator
+      │
+      ▼
 Prod-mgmt01
+10.10.0.4
       │
       ▼
 HomeLab_VNet
@@ -692,33 +725,63 @@ AppSubnet_NSG
       │
       ▼
 Dev-app01
+10.20.1.4
 ```
 
 ---
 
 ## Management-to-Data Connectivity
 
-From `Prod-mgmt01`, TCP/22 connectivity to `Dev-data01` was tested:
+From `Prod-mgmt01`, SSH connectivity to `Dev-data01` was tested:
 
 ```bash
-nc -zv 10.20.2.4 22
+ssh azureadmin@10.20.2.4
+```
+
+The connection succeeded.
+
+The data VM identity was verified:
+
+```bash
+hostname
 ```
 
 Result:
 
 ```text
-Connection to 10.20.2.4 22 port [tcp/ssh] succeeded!
+Dev-data01
 ```
 
-SSH was then validated:
+The private IP was verified:
 
 ```bash
-ssh <USERNAME>@10.20.2.4
+hostname -i
 ```
 
-The connection succeeded.
+Result:
+
+```text
+10.20.2.4
+```
 
 This confirmed that the priority `100` NSG rule successfully preserved administrative access from `ManagementSubnet`.
+
+```text
+Prod-mgmt01
+10.10.0.4
+     │
+     │ TCP/22
+     ▼
+DataSubnet_NSG
+     │
+     │ Priority 100
+     │ Allow-SSH-ManagementSubnet
+     ▼
+Dev-data01
+10.20.2.4
+
+ALLOWED
+```
 
 ---
 
@@ -752,57 +815,190 @@ Result:
 Connection to 10.20.2.4 22 port [tcp/ssh] succeeded!
 ```
 
-This provided a baseline demonstrating that the Azure default VNet rule allowed broader communication than required by the target architecture.
+This provided a baseline demonstrating that Azure's default VNet rule allowed broader communication than required by the target architecture.
 
 ---
 
-## Application-to-Data Segmentation
+# Phase 7 — Application-to-Data Security Validation
 
-After applying the custom NSG rules, the tests were repeated.
+Phase 7 validated the least-privilege security model between the application and data tiers using live network traffic.
 
-ICMP:
+The objective was to ensure that `Dev-app01` could communicate with `Dev-data01` only over the approved database port while preventing unnecessary access to the data tier.
+
+The relevant workloads were:
+
+```text
+Prod-mgmt01
+10.10.0.4
+ManagementSubnet
+     │
+     │ Administrative SSH
+     │ TCP/22
+     ▼
+Dev-data01
+10.20.2.4
+DataSubnet
+     ▲
+     │
+     │ Application Database Traffic
+     │ TCP/5432
+     │
+Dev-app01
+10.20.1.4
+AppSubnet
+```
+
+The intended security policy was:
+
+```text
+ManagementSubnet → DataSubnet TCP/22      Allow
+AppSubnet        → DataSubnet TCP/5432    Allow
+AppSubnet        → DataSubnet Other       Deny
+```
+
+This policy was enforced by `DataSubnet_NSG`.
+
+---
+
+## Validate DataSubnet_NSG Configuration
+
+Before generating traffic, the custom rules configured on `DataSubnet_NSG` were reviewed.
 
 ```bash
-ping -c 4 10.20.2.4
+az network nsg rule list -g DevLab_RG --nsg-name DataSubnet_NSG --query "[].{Priority:priority,Name:name,Source:sourceAddressPrefix,Destination:destinationAddressPrefix,Protocol:protocol,DestinationPort:destinationPortRange,Access:access,Direction:direction}" -o table
 ```
 
 Result:
 
 ```text
-4 packets transmitted
-0 received
-100% packet loss
+Priority    Name                          Source        Destination    Protocol    DestinationPort    Access    Direction
+----------  ----------------------------  ------------  -------------  ----------  -----------------  --------  -----------
+100         Allow-SSH-ManagementSubnet    10.10.0.0/24  *              Tcp         22                 Allow     Inbound
+110         Allow-PostgreSQL-AppSubnet    10.20.1.0/24  10.20.2.0/24   Tcp         5432               Allow     Inbound
+120         Deny-AppSubnet-Other-Inbound  10.20.1.0/24  10.20.2.0/24   *           *                  Deny      Inbound
 ```
 
-TCP/22:
+The priority order is significant because Azure NSG rules are evaluated beginning with the lowest priority number.
+
+```text
+100 → Allow management SSH
+110 → Allow application database traffic
+120 → Deny all other AppSubnet traffic
+...
+65000 → Azure default AllowVnetInBound
+```
+
+The custom workload-specific rules therefore take precedence over Azure's broader default virtual network rule.
+
+---
+
+## Validate App-to-Data TCP/22 Denial
+
+From `Dev-app01`, TCP/22 connectivity to `Dev-data01` was tested:
 
 ```bash
-nc -zv -w 5 10.20.2.4 22
+nc -vz -w 5 10.20.2.4 22
 ```
 
 Result:
 
 ```text
-Connection timed out
+nc: connect to 10.20.2.4 port 22 (tcp) timed out: Operation now in progress
 ```
 
-The failed tests were expected and confirmed that the explicit deny rule was taking effect.
+The timeout was expected.
 
-The resulting behavior was:
+The traffic followed:
 
 ```text
-Prod-mgmt01 → Dev-data01 TCP/22   Allowed
-
-Dev-app01 → Dev-data01 ICMP       Denied
-Dev-app01 → Dev-data01 TCP/22     Denied
-Dev-app01 → Dev-data01 TCP/5432   Allowed
+Source:           Dev-app01
+Source IP:        10.20.1.4
+Destination:      Dev-data01
+Destination IP:   10.20.2.4
+Protocol:         TCP
+Destination Port: 22
 ```
+
+Rule evaluation:
+
+```text
+Rule 100 — Allow-SSH-ManagementSubnet
+Source is not 10.10.0.0/24
+→ No match
+
+Rule 110 — Allow-PostgreSQL-AppSubnet
+Destination port is not TCP/5432
+→ No match
+
+Rule 120 — Deny-AppSubnet-Other-Inbound
+Source = AppSubnet
+Destination = DataSubnet
+→ MATCH
+
+DENY
+```
+
+Result:
+
+```text
+Dev-app01 → Dev-data01 TCP/22
+
+DENIED ❌
+```
+
+This demonstrated that application-tier systems cannot use SSH to directly administer the data tier.
 
 ---
 
-## TCP/5432 Validation
+## Validate App-to-Data TCP/80 Denial
 
-A temporary listener was started on `Dev-data01` to validate the allowed application-to-data path without installing a full database platform.
+A second unauthorized port was tested to demonstrate that the security policy was not limited specifically to SSH.
+
+From `Dev-app01`:
+
+```bash
+nc -vz -w 5 10.20.2.4 80
+```
+
+Result:
+
+```text
+nc: connect to 10.20.2.4 port 80 (tcp) timed out: Operation now in progress
+```
+
+The timeout was expected.
+
+TCP/80 did not match the approved TCP/5432 application rule and therefore matched the explicit deny rule.
+
+```text
+Dev-app01 → Dev-data01 TCP/80
+
+DENIED ❌
+```
+
+Testing multiple unauthorized ports provided additional evidence that `Deny-AppSubnet-Other-Inbound` was enforcing general application-to-data isolation rather than blocking only SSH.
+
+---
+
+## TCP/5432 Application-to-Data Validation
+
+The approved application-to-data communication path was then validated.
+
+The NSG policy allows:
+
+```text
+AppSubnet
+10.20.1.0/24
+     │
+     │ TCP/5432
+     ▼
+DataSubnet
+10.20.2.0/24
+```
+
+A successful NSG rule does not guarantee that a TCP connection will succeed unless something on the destination VM is listening on the target port.
+
+Instead of installing PostgreSQL solely for the network test, a temporary Netcat listener was created on `Dev-data01`.
 
 On `Dev-data01`:
 
@@ -810,32 +1006,112 @@ On `Dev-data01`:
 nc -lv 5432
 ```
 
+Result:
+
+```text
+Listening on 0.0.0.0 5432
+```
+
 From `Dev-app01`:
 
 ```bash
-nc -zv -w 5 10.20.2.4 5432
+nc -vz -w 5 10.20.2.4 5432
 ```
 
-The connection succeeded.
-
-The temporary listener was stopped after testing.
-
-This demonstrated that the NSG did not simply block all application-to-data traffic.
-
-Instead, it enforced the intended policy:
+Result:
 
 ```text
-AppSubnet
-     │
-     │ TCP/5432
-     ▼
-DataSubnet
-     │
-     ▼
-ALLOW
+Connection to 10.20.2.4 5432 port [tcp/postgresql] succeeded!
 ```
 
-while other application-tier traffic remained denied.
+The destination VM simultaneously reported:
+
+```text
+Connection received on dev-app01.internal.cloudapp.net 43384
+```
+
+This provided validation from both sides of the TCP connection.
+
+```text
+Dev-app01
+10.20.1.4
+     │
+     │ Source ephemeral port: 43384
+     │
+     │ Destination TCP/5432
+     ▼
+Dev-data01
+10.20.2.4
+
+ALLOWED ✅
+```
+
+The temporary source port `43384` was dynamically selected by the operating system.
+
+The destination service port remained:
+
+```text
+TCP/5432
+```
+
+The successful test validated:
+
+```text
+Priority:         110
+Rule:             Allow-PostgreSQL-AppSubnet
+Source:           10.20.1.0/24
+Destination:      10.20.2.0/24
+Protocol:         TCP
+Destination Port: 5432
+Action:           Allow
+```
+
+The temporary Netcat listener was used only to validate TCP connectivity.
+
+This test did not validate PostgreSQL itself.
+
+It validated that TCP traffic destined for port `5432` could traverse the Azure network security controls from the application tier to the data tier.
+
+---
+
+## Phase 7 Traffic Validation Results
+
+The completed traffic tests produced the following results:
+
+| Source | Destination | Protocol / Port | Expected | Result |
+| --- | --- | --- | --- | --- |
+| `Prod-mgmt01` | `Dev-data01` | TCP/22 | Allow | ✅ Allowed |
+| `Dev-app01` | `Dev-data01` | TCP/22 | Deny | ✅ Denied |
+| `Dev-app01` | `Dev-data01` | TCP/80 | Deny | ✅ Denied |
+| `Dev-app01` | `Dev-data01` | TCP/5432 | Allow | ✅ Allowed |
+
+The resulting security architecture is:
+
+```text
+                    Management Tier
+
+                     Prod-mgmt01
+                      10.10.0.4
+                           │
+                           │ TCP/22
+                           │ ALLOW
+                           ▼
+                     Dev-data01
+                      10.20.2.4
+                           ▲
+                           │
+                           │ TCP/5432
+                           │ ALLOW
+                           │
+                      Dev-app01
+                       10.20.1.4
+                           │
+                           ├── TCP/22 ── DENY
+                           │
+                           └── TCP/80 ── DENY
+```
+
+This validated that the application tier receives only the network access required for its intended database communication while administrative access remains isolated to the management tier.
 
 ---
 
@@ -869,13 +1145,66 @@ The `10.20.0.0/16 → VnetLocal` route confirmed that development network traffi
 
 ## Effective NSG Rules
 
-Effective NSG rules were inspected directly from `Dev-data01VMNic`.
+Traffic testing demonstrated the observed network behavior.
+
+The final validation step inspected Azure's effective security configuration to confirm that the intended rules were actually applied to the `Dev-data01` network interface.
+
+The NIC associated with `Dev-data01` was retrieved:
 
 ```bash
-az network nic list-effective-nsg --resource-group "DevLab_RG" --name "Dev-data01VMNic" --query "value[].effectiveSecurityRules[].{Name:name,Priority:priority,Direction:direction,Access:access,Protocol:protocol,Source:sourceAddressPrefix,Destination:destinationAddressPrefix,DestinationPort:destinationPortRange}" -o table
+az vm show -g DevLab_RG -n Dev-data01 --query "networkProfile.networkInterfaces[].id" -o tsv
 ```
 
-The effective custom rules were:
+Result:
+
+```text
+/subscriptions/<SUBSCRIPTION-ID>/resourceGroups/DevLab_RG/providers/Microsoft.Network/networkInterfaces/Dev-data01VMNic
+```
+
+This confirmed:
+
+```text
+Dev-data01
+     │
+     ▼
+Dev-data01VMNic
+```
+
+An initial attempt to display the effective NSG information directly as a table:
+
+```bash
+az network nic list-effective-nsg -g DevLab_RG -n Dev-data01VMNic -o table
+```
+
+returned:
+
+```text
+Table output unavailable. Use the --query option to specify an appropriate query.
+```
+
+The nested effective-security-rule structure was therefore extracted with JMESPath:
+
+```bash
+az network nic list-effective-nsg -g DevLab_RG -n Dev-data01VMNic --query "value[].effectiveSecurityRules[].{Priority:priority,Name:name,Protocol:protocol,Source:sourceAddressPrefixes[0],Destination:destinationAddressPrefixes[0],DestinationPort:destinationPortRanges[0],Access:access,Direction:direction}" -o table
+```
+
+Result:
+
+```text
+Priority    Name                                                Protocol    Source             Destination     DestinationPort    Access    Direction
+----------  --------------------------------------------------  ----------  -----------------  --------------  -----------------  --------  -----------
+100         securityRules/Allow-SSH-ManagementSubnet            Tcp         10.10.0.0/24       0.0.0.0/0       22-22              Allow     Inbound
+110         securityRules/Allow-PostgreSQL-AppSubnet            Tcp         10.20.1.0/24       10.20.2.0/24    5432-5432          Allow     Inbound
+120         securityRules/Deny-AppSubnet-Other-Inbound          All         10.20.1.0/24       10.20.2.0/24    0-65535            Deny      Inbound
+65000       defaultSecurityRules/AllowVnetInBound               All         VirtualNetwork     VirtualNetwork  0-65535            Allow     Inbound
+65001       defaultSecurityRules/AllowAzureLoadBalancerInBound  All         AzureLoadBalancer  0.0.0.0/0       0-65535            Allow     Inbound
+65500       defaultSecurityRules/DenyAllInBound                 All         0.0.0.0/0          0.0.0.0/0       0-65535            Deny      Inbound
+65000       defaultSecurityRules/AllowVnetOutBound              All         VirtualNetwork     VirtualNetwork  0-65535            Allow     Outbound
+65001       defaultSecurityRules/AllowInternetOutBound          All         0.0.0.0/0          Internet        0-65535            Allow     Outbound
+65500       defaultSecurityRules/DenyAllOutBound                All         0.0.0.0/0          0.0.0.0/0       0-65535            Deny      Outbound
+```
+
+This confirmed that all three custom security rules were effective on the data-tier workload:
 
 ```text
 100  Allow-SSH-ManagementSubnet
@@ -883,7 +1212,68 @@ The effective custom rules were:
 120  Deny-AppSubnet-Other-Inbound
 ```
 
-This validated that the intended subnet security configuration was not only present on `DataSubnet_NSG`, but was effective on the VM network interface.
+It also demonstrated why custom rule priority is important.
+
+Azure's default rule:
+
+```text
+65000
+AllowVnetInBound
+VirtualNetwork → VirtualNetwork
+Allow
+```
+
+would otherwise permit broader virtual network communication.
+
+Because the custom rules use priorities `100`, `110`, and `120`, Azure evaluates them before priority `65000`.
+
+For an SSH connection from `Dev-app01`:
+
+```text
+Source:      10.20.1.4
+Destination: 10.20.2.4
+Port:        TCP/22
+
+Rule 100
+Source is not ManagementSubnet
+→ No match
+
+Rule 110
+Destination port is not TCP/5432
+→ No match
+
+Rule 120
+Source is AppSubnet
+Destination is DataSubnet
+→ MATCH
+
+DENY
+```
+
+Azure stops evaluating the remaining rules after the matching deny rule.
+
+For TCP/5432:
+
+```text
+Source:      10.20.1.4
+Destination: 10.20.2.4
+Port:        TCP/5432
+
+Rule 100
+→ No match
+
+Rule 110
+Source = AppSubnet
+Destination = DataSubnet
+Port = TCP/5432
+→ MATCH
+
+ALLOW
+```
+
+Azure again stops evaluating after the matching rule.
+
+This demonstrates how custom NSG rules can override broader Azure defaults to implement workload-specific least-privilege security.
 
 ---
 
@@ -978,6 +1368,63 @@ The private address remained:
 ```text
 10.20.2.4
 ```
+
+---
+
+# Phase 7 Final Validation
+
+Phase 7 validated application-to-data security through three separate forms of evidence.
+
+## Configuration Validation
+
+The configured NSG rules were inspected:
+
+```text
+100  ManagementSubnet → DataSubnet TCP/22      Allow
+110  AppSubnet        → DataSubnet TCP/5432    Allow
+120  AppSubnet        → DataSubnet Other       Deny
+```
+
+## Live Traffic Validation
+
+Actual TCP connections were generated between workloads:
+
+```text
+Dev-app01 → Dev-data01 TCP/22     Denied
+Dev-app01 → Dev-data01 TCP/80     Denied
+Dev-app01 → Dev-data01 TCP/5432   Allowed
+
+Prod-mgmt01 → Dev-data01 TCP/22   Allowed
+```
+
+## Effective Configuration Validation
+
+The effective NSG configuration on `Dev-data01VMNic` confirmed that the custom rules were actively applied to the workload.
+
+The validation workflow followed:
+
+```text
+Configure
+    │
+    ▼
+Inspect
+    │
+    ▼
+Generate Traffic
+    │
+    ▼
+Validate Behavior
+    │
+    ▼
+Inspect Effective Configuration
+    │
+    ▼
+Confirm Security Policy
+```
+
+This provides stronger validation than simply confirming that NSG rules exist.
+
+Phase 7 successfully demonstrated both network segmentation and least-privilege workload communication.
 
 ---
 
@@ -1076,6 +1523,80 @@ A local SSH configuration issue should not trigger changes to Azure networking r
 
 ---
 
+## Incorrect SSH Administrator Username
+
+### Issue
+
+An initial attempt to access `Prod-mgmt01` used:
+
+```bash
+ssh azureuser@<PROD-MGMT01-PUBLIC-IP>
+```
+
+The server returned:
+
+```text
+Permission denied (publickey).
+```
+
+### Investigation
+
+The VM's configured administrator username was retrieved directly from Azure:
+
+```bash
+az vm show -g HomeLab_RG -n Prod-mgmt01 --query "osProfile.adminUsername" -o tsv
+```
+
+Result:
+
+```text
+azureadmin
+```
+
+### Root Cause
+
+The SSH connection used the incorrect Linux administrator username.
+
+The VM had been provisioned with:
+
+```text
+azureadmin
+```
+
+rather than:
+
+```text
+azureuser
+```
+
+### Resolution
+
+The connection was retried using:
+
+```bash
+ssh azureadmin@<PROD-MGMT01-PUBLIC-IP>
+```
+
+The SSH connection succeeded.
+
+### Lesson Learned
+
+A `Permission denied (publickey)` error does not automatically indicate an incorrect SSH key or an Azure networking problem.
+
+The authentication path includes:
+
+```text
+Username
+   +
+Private Key
+   +
+Authorized Public Key
+```
+
+The configured administrator username should be verified before modifying SSH keys or network security rules.
+
+---
+
 ## SSH Authentication Failed Between VMs
 
 ### Issue
@@ -1090,18 +1611,7 @@ Permission denied (publickey)
 
 ### Investigation
 
-TCP/22 connectivity was tested before modifying Azure networking.
-
-The management VM could reach `Dev-app01`, confirming:
-
-```text
-Network Path       → Working
-VNet Peering       → Working
-Routing            → Working
-NSG                → Working
-TCP/22             → Reachable
-SSH Authentication → Failing
-```
+The Ed25519 private key existed on the administrator workstation but was intentionally not copied to the management VM.
 
 The SSH agent was inspected:
 
@@ -1109,13 +1619,11 @@ The SSH agent was inspected:
 ssh-add -l
 ```
 
-The required identity was not loaded.
+The required identity needed to be loaded and forwarded.
 
 ### Root Cause
 
-The Ed25519 private key existed on the administrator workstation but had not been loaded into the local SSH agent.
-
-SSH agent forwarding therefore had no identity available to forward.
+The private key existed locally, but the management session did not initially have access to the local SSH identity through agent forwarding.
 
 ### Resolution
 
@@ -1134,24 +1642,38 @@ ssh-add -l
 The management VM was accessed using agent forwarding:
 
 ```bash
-ssh -A <USERNAME>@<PROD-MGMT01-PUBLIC-IP>
-```
-
-The forwarded identity was verified from `Prod-mgmt01`:
-
-```bash
-ssh-add -l
+ssh -A azureadmin@<PROD-MGMT01-PUBLIC-IP>
 ```
 
 SSH to `Dev-app01` was then retried:
 
 ```bash
-ssh <USERNAME>@10.20.1.4
+ssh azureadmin@10.20.1.4
 ```
 
 The connection succeeded.
 
+The same administrative path also allowed:
+
+```bash
+ssh azureadmin@10.20.2.4
+```
+
+from `Prod-mgmt01`.
+
 ### Lesson Learned
+
+SSH agent forwarding provides administrative access through a jump host without requiring the private SSH key to be copied onto that host.
+
+```text
+Private Key
+    │
+    └── Administrator Workstation ONLY
+```
+
+This is preferable to unnecessarily distributing the private key across remote systems.
+
+Additionally:
 
 ```text
 Connection timed out
@@ -1166,6 +1688,63 @@ Permission denied (publickey)
 means the SSH service was reached but authentication failed.
 
 Recognizing that difference prevented unnecessary changes to working NSGs and VNet peering.
+
+---
+
+## Azure CLI Command Executed Inside Linux VM
+
+### Issue
+
+While connected to `Prod-mgmt01`, an Azure CLI command was attempted:
+
+```bash
+az vm show -d -g HomeLab_RG -n Dev-app01
+```
+
+The guest operating system returned:
+
+```text
+az: command not found
+```
+
+### Root Cause
+
+Azure CLI was installed and authenticated on the administrator workstation, not on `Prod-mgmt01`.
+
+The SSH session was operating inside the Ubuntu guest OS rather than the administrator workstation.
+
+### Resolution
+
+Azure control-plane commands continued to be executed from the administrator workstation.
+
+Linux guest commands were executed from the virtual machines.
+
+```text
+Administrator Workstation
+│
+├── Azure CLI
+│   ├── az vm show
+│   ├── az network nsg rule list
+│   ├── az network nic list-effective-nsg
+│   └── Azure resource management
+│
+└── SSH
+    │
+    ▼
+Linux Virtual Machines
+    ├── hostname
+    ├── hostname -I
+    ├── ip addr
+    ├── nc
+    ├── ping
+    └── guest OS administration
+```
+
+### Lesson Learned
+
+Azure resource management and guest operating-system administration represent separate management layers.
+
+Azure CLI interacts with the Azure control plane, while commands executed after SSHing into a VM operate inside the guest operating system.
 
 ---
 
@@ -1221,7 +1800,7 @@ The problem was not caused by networking or SSH configuration.
 
 The existing `Dev-app01` VM was preserved.
 
-The deployment workflow was corrected to target the intended new VM:
+The deployment workflow was corrected to target:
 
 ```text
 Dev-data01
@@ -1345,14 +1924,21 @@ Without higher-priority custom rules, the default VNet rule continued to permit 
 Three explicit security behaviors were implemented:
 
 ```text
-ManagementSubnet → DataSubnet TCP/22    Allow
-AppSubnet → DataSubnet TCP/5432         Allow
-AppSubnet → DataSubnet everything else  Deny
+ManagementSubnet → DataSubnet TCP/22      Allow
+AppSubnet → DataSubnet TCP/5432           Allow
+AppSubnet → DataSubnet everything else    Deny
 ```
 
 The traffic tests were repeated after the change.
 
-SSH and ICMP from `Dev-app01` failed, while the approved TCP/5432 path succeeded.
+The following behavior was validated:
+
+```text
+Dev-app01 → Dev-data01 TCP/22     Denied
+Dev-app01 → Dev-data01 TCP/80     Denied
+Dev-app01 → Dev-data01 TCP/5432   Allowed
+Prod-mgmt01 → Dev-data01 TCP/22   Allowed
+```
 
 ### Lesson Learned
 
@@ -1423,6 +2009,24 @@ AppSubnet → DataSubnet TCP/5432   Allow
 AppSubnet → DataSubnet Other      Deny
 ```
 
+This limits the application's network privileges to the service it is expected to consume.
+
+---
+
+## Test Both Allow and Deny Conditions
+
+Testing only TCP/5432 would prove that the approved path worked but would not prove that unauthorized traffic was restricted.
+
+Phase 7 tested both sides of the security policy:
+
+```text
+Expected Allow → TCP/5432 → Success
+Expected Deny  → TCP/22   → Timeout
+Expected Deny  → TCP/80   → Timeout
+```
+
+A security control should be validated against both permitted and prohibited behavior.
+
 ---
 
 ## Preserve Management Access Separately
@@ -1435,6 +2039,46 @@ ManagementSubnet → DataSubnet TCP/22
 
 This means operational access can remain available without granting SSH access to application-tier systems.
 
+The resulting separation is:
+
+```text
+ManagementSubnet
+     │
+     └── SSH → DataSubnet
+             ALLOW
+
+AppSubnet
+     │
+     ├── PostgreSQL → DataSubnet
+     │                ALLOW
+     │
+     └── Other → DataSubnet
+                 DENY
+```
+
+---
+
+## NSG Priority Determines Which Policy Wins
+
+Azure's effective security rules still contain:
+
+```text
+65000
+AllowVnetInBound
+```
+
+However, the custom workload rules use:
+
+```text
+100
+110
+120
+```
+
+These rules are evaluated before the broader Azure default.
+
+This allows explicit workload security requirements to override the default virtual-network communication behavior.
+
 ---
 
 ## Network Connectivity and Authentication Are Different Problems
@@ -1442,6 +2086,16 @@ This means operational access can remain available without granting SSH access t
 A working TCP connection does not guarantee successful SSH authentication.
 
 Likewise, an SSH authentication failure does not automatically indicate a network failure.
+
+For example:
+
+```text
+Permission denied (publickey)
+```
+
+indicates that the SSH service was reached but authentication was unsuccessful.
+
+A timeout more commonly indicates that the network connection could not be established.
 
 Testing each layer separately avoids unnecessary infrastructure changes.
 
@@ -1463,6 +2117,21 @@ The effective NSG rules on `Dev-data01VMNic` were inspected to confirm that the 
 
 Effective route tables were also inspected to verify that Azure recognized the expected local, peered, and Internet paths.
 
+The overall validation approach became:
+
+```text
+Configured Intent
+       │
+       ▼
+Effective Configuration
+       │
+       ▼
+Live Traffic Testing
+       │
+       ▼
+Observed Behavior
+```
+
 ---
 
 ## Keep Private SSH Keys Off Remote Servers
@@ -1470,6 +2139,44 @@ Effective route tables were also inspected to verify that Azure recognized the e
 SSH agent forwarding allowed the administrator's private key to remain on the workstation.
 
 The private key did not need to be copied to `Prod-mgmt01`, `Dev-app01`, or `Dev-data01`.
+
+```text
+Administrator Workstation
+        │
+        │ Private key remains here
+        │
+        ▼
+SSH Agent Forwarding
+        │
+        ▼
+Prod-mgmt01
+        │
+        ├────────► Dev-app01
+        │
+        └────────► Dev-data01
+```
+
+This reduces unnecessary exposure of private authentication material.
+
+---
+
+## Understand the Azure Control Plane vs. Guest OS
+
+Azure CLI commands executed from the administrator workstation manage Azure resources through the Azure control plane.
+
+Commands executed after SSHing into a Linux VM operate inside the guest operating system.
+
+```text
+Azure CLI
+   │
+   └── Azure Resource Management
+
+SSH Session
+   │
+   └── Linux Guest Administration
+```
+
+Understanding which management layer is being used helps isolate troubleshooting problems more quickly.
 
 ---
 
@@ -1509,6 +2216,57 @@ Restart validation
 Network persistence
 Cost-conscious lab operation
 ```
+
+---
+
+# Phase 7 Completion
+
+Phase 7 successfully implemented and validated least-privilege network segmentation between the application and data tiers.
+
+The final security model is:
+
+```text
+Administrator
+     │
+     ▼
+Prod-mgmt01
+10.10.0.4
+     │
+     │ ManagementSubnet
+     │
+     ├──────────── TCP/22 ──────────────┐
+     │                                  │
+     ▼                                  ▼
+Dev-app01                          Dev-data01
+10.20.1.4                         10.20.2.4
+AppSubnet                          DataSubnet
+     │                                  ▲
+     │                                  │
+     ├──── TCP/5432 ────────────────────┤
+     │          ALLOW                   │
+     │                                  │
+     ├──── TCP/22 ──────────────────────┤
+     │          DENY                    │
+     │                                  │
+     └──── TCP/80 ──────────────────────┘
+                DENY
+```
+
+The environment now demonstrates:
+
+* private application and data workloads
+* dedicated management access
+* VNet peering
+* subnet-level NSG enforcement
+* explicit workload allow rules
+* explicit workload deny rules
+* least-privilege application-to-data communication
+* live TCP validation
+* effective NSG validation
+* SSH agent forwarding
+* separation of Azure control-plane and guest OS administration
+
+**Project 3 — Phase 7: Application-to-Data Security is complete.**
 
 ---
 
