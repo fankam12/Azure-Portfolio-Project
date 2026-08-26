@@ -20,6 +20,10 @@ The implementation also introduced SSH public-key authentication, Network Interf
 
 # Architecture
 
+The completed environment consists of three Linux virtual machines distributed across dedicated management, application, and data subnets.
+
+`Prod-mgmt01` provides the administrative entry point from `HomeLab_VNet`, while `Dev-app01` and `Dev-data01` remain private within `Devlab_VNet`. The two virtual networks communicate through bidirectional VNet peering.
+
 ```text
 Azure Subscription
 │
@@ -31,29 +35,31 @@ Azure Subscription
 │           │
 │           ├── ManagementSubnet_NSG
 │           │
-│           └── Prod-mgmt01
+│           └── Prod-mgmt01 ✅
 │               │
-│               ├── Ubuntu Linux
-│               ├── NIC
+│               ├── Ubuntu 22.04 LTS
+│               ├── Standard_D2als_v7
+│               ├── NIC: Prod-mgmt01-nic
 │               ├── Private IP: 10.10.0.4
 │               └── Public administrative endpoint
 │
 │                         ⇅
-│                    VNet Peering
+│                  VNet Peering ✅
 │                         ⇅
 │
 └── DevLab_RG
     │
-    └── Development VNet
+    └── Devlab_VNet
         │
         ├── AppSubnet
         │   │
         │   ├── AppSubnet_NSG
         │   │
-        │   └── Dev-app01
+        │   └── Dev-app01 ✅
         │       │
-        │       ├── Ubuntu Linux
-        │       ├── NIC
+        │       ├── Ubuntu 22.04 LTS
+        │       ├── Standard_D2als_v7
+        │       ├── NIC: Dev-app01-nic
         │       ├── Private IP: 10.20.1.4
         │       └── No Public IP
         │
@@ -61,13 +67,51 @@ Azure Subscription
             │
             ├── DataSubnet_NSG
             │
-            └── Dev-data01
+            └── Dev-data01 ✅
                 │
-                ├── Ubuntu Linux
-                ├── NIC
+                ├── Ubuntu 22.04 LTS
+                ├── Standard_D2als_v7
+                ├── NIC: Dev-data01VMNic
                 ├── Private IP: 10.20.2.4
                 └── No Public IP
 ```
+
+## Traffic Flow
+
+The architecture separates administrative access from application-to-data communication.
+
+```text
+                         Administrative Access
+                                TCP/22
+                                   │
+                                   ▼
+                            Prod-mgmt01
+                             10.10.0.4
+                                   │
+                                   │ VNet Peering
+                     ┌─────────────┴─────────────┐
+                     │                           │
+                     │ TCP/22                    │ TCP/22
+                     ▼                           ▼
+                Dev-app01                  Dev-data01
+                10.20.1.4                  10.20.2.4
+                     │                           ▲
+                     │        TCP/5432           │
+                     └───────────────────────────┘
+                          PostgreSQL Traffic
+```
+
+The resulting traffic model follows these principles:
+
+* Administrative SSH access to the development environment originates from `ManagementSubnet`.
+* `Dev-app01` and `Dev-data01` do not have public IP addresses.
+* `HomeLab_VNet` and `Devlab_VNet` communicate through bidirectional VNet peering.
+* `AppSubnet_NSG` allows SSH from `ManagementSubnet` to the application tier.
+* `DataSubnet_NSG` allows SSH from `ManagementSubnet` to the data tier.
+* `DataSubnet_NSG` allows TCP/5432 from `AppSubnet` for application-to-database communication.
+* Other inbound traffic from `AppSubnet` to `DataSubnet` is explicitly denied.
+
+This design creates a private three-tier infrastructure foundation while maintaining controlled administrative access and least-privilege communication between workloads.
 
 ---
 
@@ -88,37 +132,43 @@ Prod-mgmt01
 10.10.0.4
 ```
 
-The management VM also provides administrative access to private resources in the development environment through VNet peering.
+The management VM also provides administrative access to both private resources in the development environment through VNet peering.
 
 ```text
 Administrator
      │
      ▼
 Prod-mgmt01
+10.10.0.4
      │
      │ Private Connectivity
      │ VNet Peering
-     ▼
-Development Workloads
+     │
+     ├───────────────────────┐
+     ▼                       ▼
+Dev-app01               Dev-data01
+10.20.1.4               10.20.2.4
 ```
 
 ---
 
 ## Application Tier
 
-`Dev-app01` was deployed into `AppSubnet`.
+`Dev-app01` was deployed into `AppSubnet` within `Devlab_VNet`.
 
 The VM was intentionally deployed without a public IP address.
 
-| Configuration    | Value          |
-| ---------------- | -------------- |
-| VM               | `Dev-app01`    |
-| Resource Group   | `DevLab_RG`    |
-| Subnet           | `AppSubnet`    |
-| Private IP       | `10.20.1.4`    |
-| Public IP        | None           |
-| Operating System | Ubuntu Linux   |
-| Authentication   | SSH Public Key |
+| Configuration | Value |
+| --- | --- |
+| VM | `Dev-app01` |
+| Resource Group | `DevLab_RG` |
+| VNet | `Devlab_VNet` |
+| Subnet | `AppSubnet` |
+| Private IP | `10.20.1.4` |
+| Public IP | None |
+| VM Size | `Standard_D2als_v7` |
+| Operating System | Ubuntu Linux |
+| Authentication | SSH Public Key |
 
 Administrative access follows:
 
@@ -127,6 +177,7 @@ Administrator
      │
      ▼
 Prod-mgmt01
+10.10.0.4
      │
      │ VNet Peering
      │ TCP/22
@@ -141,21 +192,21 @@ This allows the application workload to remain private while still being adminis
 
 ## Data Tier
 
-`Dev-data01` was deployed into `DataSubnet`.
+`Dev-data01` was deployed into `DataSubnet` within `Devlab_VNet`.
 
 The VM was also intentionally deployed without a public IP address.
 
-| Configuration    | Value               |
-| ---------------- | ------------------- |
-| VM               | `Dev-data01`        |
-| Resource Group   | `DevLab_RG`         |
-| VNet             | `Devlab_VNet`       |
-| Subnet           | `DataSubnet`        |
-| Private IP       | `10.20.2.4`         |
-| Public IP        | None                |
-| VM Size          | `Standard_D2als_v7` |
-| Operating System | Ubuntu Linux        |
-| Authentication   | SSH Public Key      |
+| Configuration | Value |
+| --- | --- |
+| VM | `Dev-data01` |
+| Resource Group | `DevLab_RG` |
+| VNet | `Devlab_VNet` |
+| Subnet | `DataSubnet` |
+| Private IP | `10.20.2.4` |
+| Public IP | None |
+| VM Size | `Standard_D2als_v7` |
+| Operating System | Ubuntu Linux |
+| Authentication | SSH Public Key |
 
 The data-tier VM is administratively reachable from the management subnet but is intentionally restricted from unnecessary application-tier access.
 
@@ -256,15 +307,17 @@ cat ~/.ssh/id_ed25519.pub
 
 The management VM was deployed into the existing management network.
 
-| Configuration    | Value              |
-| ---------------- | ------------------ |
-| VM               | `Prod-mgmt01`      |
-| Resource Group   | `HomeLab_RG`       |
-| VNet             | `HomeLab_VNet`     |
-| Subnet           | `ManagementSubnet` |
-| Operating System | Ubuntu Linux       |
-| Private IP       | `10.10.0.4`        |
-| Authentication   | SSH Public Key     |
+| Configuration | Value |
+| --- | --- |
+| VM | `Prod-mgmt01` |
+| Resource Group | `HomeLab_RG` |
+| VNet | `HomeLab_VNet` |
+| Subnet | `ManagementSubnet` |
+| VM Size | `Standard_D2als_v7` |
+| Operating System | Ubuntu Linux |
+| Private IP | `10.10.0.4` |
+| Public IP | Yes |
+| Authentication | SSH Public Key |
 
 The deployment reused the existing networking resources rather than creating a new VNet or subnet.
 
@@ -278,17 +331,19 @@ az vm show --resource-group "HomeLab_RG" --name "Prod-mgmt01" -d -o table
 
 ## Dev-app01
 
-The application VM was deployed into the existing development network.
+The application VM was deployed into the existing `Devlab_VNet` development network.
 
-| Configuration    | Value          |
-| ---------------- | -------------- |
-| VM               | `Dev-app01`    |
-| Resource Group   | `DevLab_RG`    |
-| Subnet           | `AppSubnet`    |
-| Operating System | Ubuntu Linux   |
-| Private IP       | `10.20.1.4`    |
-| Public IP        | None           |
-| Authentication   | SSH Public Key |
+| Configuration | Value |
+| --- | --- |
+| VM | `Dev-app01` |
+| Resource Group | `DevLab_RG` |
+| VNet | `Devlab_VNet` |
+| Subnet | `AppSubnet` |
+| VM Size | `Standard_D2als_v7` |
+| Operating System | Ubuntu Linux |
+| Private IP | `10.20.1.4` |
+| Public IP | None |
+| Authentication | SSH Public Key |
 
 VM configuration can be reviewed with:
 
@@ -540,10 +595,12 @@ az vm list -d -o table
 The expected compute architecture is:
 
 ```text
-Prod-mgmt01
-Dev-app01
-Dev-data01
+Prod-mgmt01   10.10.0.4   Management Tier
+Dev-app01     10.20.1.4   Application Tier
+Dev-data01    10.20.2.4   Data Tier
 ```
+
+All three planned Linux virtual machines are now deployed.
 
 ---
 
@@ -628,7 +685,7 @@ HomeLab_VNet
 VNet Peering
       │
       ▼
-Development VNet
+Devlab_VNet
       │
       ▼
 AppSubnet_NSG
@@ -806,7 +863,7 @@ The route:
 
 confirmed that Azure recognized the management network as reachable through VNet peering.
 
-The `10.20.0.0/16 → VnetLocal` route confirmed that development network traffic remained local to the development VNet.
+The `10.20.0.0/16 → VnetLocal` route confirmed that development network traffic remained local to `Devlab_VNet`.
 
 ---
 
@@ -1426,9 +1483,12 @@ Administrator
      ▼
 Prod-mgmt01
      │
-     ├───────────────┐
-     ▼               ▼
-Dev-app01        Dev-data01
+     │ VNet Peering
+     ├─────────────────┐
+     │                 │
+     ▼                 ▼
+Dev-app01          Dev-data01
+10.20.1.4          10.20.2.4
 ```
 
 This preserves administrative access while limiting direct Internet exposure.
@@ -1461,14 +1521,42 @@ Administrator
      │
      ▼
 Prod-mgmt01
+10.10.0.4
      │
      │ VNet Peering
-     ▼
-Dev-app01
      │
-     │ TCP/5432 Only
-     ▼
-Dev-data01
+     ├───────────────────────┐
+     │                       │
+     │ TCP/22                │ TCP/22
+     ▼                       ▼
+Dev-app01               Dev-data01
+10.20.1.4               10.20.2.4
+     │                       ▲
+     │      TCP/5432         │
+     └───────────────────────┘
+```
+
+The completed compute environment now contains all three planned virtual machines:
+
+```text
+HomeLab_RG
+└── HomeLab_VNet
+    └── ManagementSubnet
+        └── Prod-mgmt01 ✅
+            10.10.0.4
+                 │
+                 │ VNet Peering ✅
+                 ▼
+DevLab_RG
+└── Devlab_VNet
+    │
+    ├── AppSubnet
+    │   └── Dev-app01 ✅
+    │       10.20.1.4
+    │
+    └── DataSubnet
+        └── Dev-data01 ✅
+            10.20.2.4
 ```
 
 The next evolution is to represent the manually deployed Azure infrastructure as declarative Infrastructure as Code.
