@@ -463,7 +463,7 @@ Cost governance is implemented at the Azure subscription level to provide visibi
 
 Budget monitoring provides early visibility into unexpected cloud spending while allowing the environment to continue supporting infrastructure testing and development.
 
-📖 [View Cost Management & Budget Alerting Documentation](Docs/cost-management/README.md/budget-alerting.md)
+📖 [View Cost Management & Budget Alerting Documentation](docs/cost-management/budget-alerting.md)
 
 
 Controls implemented:
