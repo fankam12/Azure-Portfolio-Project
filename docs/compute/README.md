@@ -15,7 +15,7 @@ The implementation emphasizes private connectivity, controlled administrative ac
 | Implementation | Description | Documentation |
 |---|---|---|
 | Private Linux Virtual Machines | Linux VM deployment, SSH authentication, subnet segmentation, private connectivity, and troubleshooting | [View Linux VM Documentation](./private-linux-vms.md) |
-| Windows Server 2022 Virtual Machines | Windows Server infrastructure across management and development environments, including private networking and VM administration | [View Windows Server Documentation](./windows-server-vms.md) |
+| Windows Server 2022 Virtual Machines | Windows Server infrastructure across management and development environments, including private networking, SSH-tunneled RDP access, and VM lifecycle validation | [View Windows Server Documentation](./windows-server-vms.md) |
 | Windows Server Deployment with Terraform | Infrastructure-as-Code deployment of a private Windows Server 2022 VM using existing Azure networking resources | [View Terraform Project](../../terraform/dev-windows-vm/README.md) |
 
 ## Virtual Machine Inventory
@@ -42,46 +42,31 @@ The compute environment uses two resource groups and two peered Azure virtual ne
 Azure HomeLab Subscription
 │
 ├── HomeLab_RG
-│   │
 │   └── HomeLab_VNet (10.10.0.0/16)
-│       │
 │       └── ManagementSubnet (10.10.0.0/24)
-│           │
 │           ├── ManagementSubnet_NSG
-│           │
 │           ├── Prod-mgmt01 [Ubuntu 22.04 LTS]
 │           │   ├── Private IP: 10.10.0.4
 │           │   └── Public administrative endpoint
-│           │
 │           └── Prod-win01 [Windows Server 2022]
 │               ├── Private IP: 10.10.0.5
 │               └── No Public IP
 │
-│                   ⇅
-│              VNet Peering
-│                   ⇅
+│              ⇅ VNet Peering ⇅
 │
 └── DevLab_RG
-    │
     └── Devlab_VNet (10.20.0.0/16)
-        │
         ├── AppSubnet (10.20.1.0/24)
-        │   │
         │   ├── AppSubnet_NSG
-        │   │
         │   ├── Dev-app01 [Ubuntu 22.04 LTS]
-│       │   ├── Private IP: 10.20.1.4
-│       │   └── No Public IP
-        │   │
+        │   │   ├── Private IP: 10.20.1.4
+        │   │   └── No Public IP
         │   └── Dev-win01 [Windows Server 2022]
         │       ├── Private IP: 10.20.1.5
         │       ├── No Public IP
         │       └── Terraform Deployment
-        │
         └── DataSubnet (10.20.2.0/24)
-            │
             ├── DataSubnet_NSG
-            │
             └── Dev-data01 [Ubuntu 22.04 LTS]
                 ├── Private IP: 10.20.2.4
                 └── No Public IP
@@ -89,7 +74,7 @@ Azure HomeLab Subscription
 
 Bidirectional VNet peering enables private communication between the management and development environments.
 
-Subnet-level Network Security Groups enforce traffic restrictions between infrastructure tiers.
+Subnet-level Network Security Groups provide traffic controls between infrastructure tiers. Effective permissions depend on both custom and default NSG rules.
 
 ## Linux Virtual Machine Infrastructure
 
@@ -143,6 +128,8 @@ These VMs provide a controlled environment for Windows Server administration, Az
 
 The VM supports independent testing of Windows Server configurations and Azure compute administration without requiring a directly assigned public IP address.
 
+Private RDP connectivity to `Prod-win01` remains a future validation exercise.
+
 ### Development Windows Server — Dev-win01
 
 | Configuration | Value |
@@ -162,13 +149,17 @@ The VM supports independent testing of Windows Server configurations and Azure c
 
 `Dev-win01` was deployed using Terraform and integrated with existing Azure networking resources.
 
-Terraform provisions the Windows Server VM, network interface, static private IP configuration, and a restricted RDP network security rule.
+Terraform provisions the Windows Server VM, network interface, static private IP configuration, and a custom RDP network security rule.
 
-RDP access on TCP port 3389 is restricted to the management VM's private IP address (`10.10.0.4/32`) through `AppSubnet_NSG`.
+The custom `AppSubnet_NSG` rule explicitly permits TCP/3389 from the management VM (`10.10.0.4/32`) to `Dev-win01` (`10.20.1.5`).
 
-The deployment design uses the management VM and an SSH tunnel for private RDP administration rather than exposing RDP directly to the internet.
+However, the default `AllowVnetInBound` rule may also permit RDP from other internal sources across the peered VNets. Therefore, the custom rule does not exclusively limit all internal RDP traffic to the management VM.
+
+The validated administrative workflow uses an SSH tunnel through `Prod-mgmt01` to reach the private Windows Server desktop from macOS, without exposing RDP directly to the internet.
 
 **Terraform documentation:** [Windows Server 2022 Deployment with Terraform](../../terraform/dev-windows-vm/README.md)
+
+**Connectivity documentation:** [Windows Server 2022 — Private Administration & Terraform](./windows-server-vms.md)
 
 ## Administrative Access & Network Security
 
@@ -178,15 +169,19 @@ The compute architecture separates administrative connectivity from application-
 
 Linux workloads use SSH authentication and private network connectivity.
 
-`Prod-mgmt01` provides the administrative path to `Dev-app01` and `Dev-data01` across the peered virtual networks.
+`Prod-mgmt01` provides the administrative path to `Dev-app01` and `Dev-data01` across the peered Azure virtual networks.
 
 ### Windows Administration
 
 Both Windows Server VMs are configured without public IP addresses.
 
-The `Dev-win01` Terraform configuration restricts inbound RDP access to the designated management VM.
+The `Dev-win01` Terraform configuration creates a source-specific RDP allow rule for the designated management VM. The effective NSG also contains Azure's default `AllowVnetInBound` rule, which may allow additional internal sources.
 
-Windows administrative connectivity, including RDP tunneling and operating system-level access, is documented separately from the infrastructure deployment configuration.
+On October 27, 2026, private RDP administration of `Dev-win01` was successfully validated through SSH local port forwarding from macOS via `Prod-mgmt01`.
+
+The validation included TCP/3389 connectivity, local SSH tunnel connectivity, authenticated Windows Server desktop access, and VM deallocation after testing.
+
+**Detailed validation:** [Windows Server 2022 VMs — Private Administration & Terraform](./windows-server-vms.md)
 
 ### Network Security Controls
 
@@ -195,9 +190,10 @@ The environment uses:
 - Subnet-level Network Security Groups.
 - Private IP addressing for development workloads.
 - Bidirectional VNet peering.
-- Restricted administrative access.
+- Controlled administrative access through SSH and private RDP.
 - Application-to-data traffic controls.
 - Separation between management, application, and data tiers.
+- Effective NSG inspection to verify custom and default rule behavior.
 
 ## Infrastructure Validation & Troubleshooting
 
@@ -207,9 +203,9 @@ The compute environment supports practical exercises in Azure infrastructure ope
 |---|---|
 | Compute | VM provisioning, configuration inspection, power-state verification, lifecycle management |
 | Networking | Private IP validation, subnet placement, VNet peering connectivity |
-| Security | NSG rule inspection, effective security rule analysis, restricted administrative access |
+| Security | NSG rule inspection, effective security rule analysis, administrative access validation |
 | Linux Administration | SSH authentication, agent forwarding, private SSH connectivity |
-| Windows Administration | Windows Server configuration, private RDP connectivity testing, OS administration |
+| Windows Administration | Windows Server configuration, validated SSH-tunneled RDP connectivity, future OS administration |
 | Infrastructure as Code | Terraform initialization, validation, planning, and controlled deployment |
 | Troubleshooting | Network connectivity investigation, deployment errors, configuration issues |
 | Cost Management | VM deallocation, resource utilization review, cost-conscious lab operations |
@@ -220,7 +216,7 @@ Validation procedures and troubleshooting findings are recorded within the relev
 
 The HomeLab uses Azure VM lifecycle operations to manage compute resource utilization and operating costs.
 
-At the time of the latest configuration review, both Windows Server VMs were in the `VM deallocated` state.
+On October 27, 2026, both `Dev-win01` and `Prod-mgmt01` were confirmed in the `VM deallocated` state following the private RDP validation exercise.
 
 Deallocating virtual machines releases their allocated compute capacity and stops VM compute billing while retaining associated resources such as managed disks.
 
@@ -240,6 +236,7 @@ Compute implementations follow a structured workflow:
 ## Related Documentation
 
 - [Private Linux Virtual Machines](./private-linux-vms.md)
+- [Windows Server 2022 — Private Administration & Terraform](./windows-server-vms.md)
 - [Windows Server 2022 Terraform Deployment](../../terraform/dev-windows-vm/README.md)
 
 ## Security & Responsible Testing
