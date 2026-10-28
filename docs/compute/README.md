@@ -15,7 +15,7 @@ The implementation emphasizes private connectivity, controlled administrative ac
 | Implementation | Description | Documentation |
 |---|---|---|
 | Private Linux Virtual Machines | Linux VM deployment, SSH authentication, subnet segmentation, private connectivity, and troubleshooting | [View Linux VM Documentation](./private-linux-vms.md) |
-| Windows Server 2022 Virtual Machines | Windows Server infrastructure across management and development environments, including private networking and VM administration | Documentation to be published |
+| Windows Server 2022 Virtual Machines | Windows Server infrastructure across management and development environments, including private networking and VM administration | [View Windows Server Documentation](./windows-server-vms.md) |
 | Windows Server Deployment with Terraform | Infrastructure-as-Code deployment of a private Windows Server 2022 VM using existing Azure networking resources | [View Terraform Project](../../terraform/dev-windows-vm/README.md) |
 
 ## Virtual Machine Inventory
