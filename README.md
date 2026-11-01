@@ -73,6 +73,12 @@ Provisioned Azure Windows Server infrastructure using Terraform, including compu
 
 [View Terraform Windows Server 2022 Project](terraform/dev-windows-vm/README.md)
 
+### Windows Server Administration & Azure Update Manager
+
+Validated authenticated private RDP access to two Windows Server 2022 VMs through an SSH jump host. Performed PowerShell-based guest networking, service, Event Log, Device Guard, and Windows Firewall diagnostics on the development VM. Assessed both Windows VMs in Azure Update Manager, confirmed no pending updates at the assessment time, and enabled periodic assessments. Documented remaining security hardening and patch orchestration work separately.
+
+[View Windows Server Administration & Patch Compliance](docs/compute/windows-server-administration-and-patching.md)
+
 ## Technologies & Tools
 
 | Category | Technologies |
