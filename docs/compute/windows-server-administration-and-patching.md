@@ -4,7 +4,7 @@
 
 ## Scope and validation date
 
-**October 31, 2026.** This record documents hands-on Windows Server administration on `Dev-win01`, successful authenticated RDP to **both** Windows VMs, and Azure Update Manager assessment/configuration for **both** Windows VMs. All five lab VMs were deallocated after the exercises, as reported by the operator. This is a personal lab, not a production environment.
+This record documents hands-on Windows Server administration on `Dev-win01`, successful authenticated RDP to **both** Windows VMs, and Azure Update Manager assessment/configuration for **both** Windows VMs. All five lab VMs were deallocated after the exercises, as reported by the operator. This is a personal lab, not a production environment.
 
 | VM | Resource group | Private IP | OS | Validated |
 |---|---|---|---|---|
