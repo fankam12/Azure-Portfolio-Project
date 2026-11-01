@@ -127,24 +127,9 @@ These are **guest-reported** entries, not an independently verified complete upd
 In **Azure Update Manager → Machines**, an assessment completed for `Dev-win01` and `Prod-win01`. Both displayed **No pending updates** on October 31, 2026. Subsequently, **Update settings → Periodic assessment → Enable** was saved for both. A refreshed Machines view showed `Periodic assessment: Yes` for both and `No pending updates` for both.
 
 - Patch orchestration remained **Windows automatic updates (current)**; no Azure Update Manager maintenance schedule was created.
-- No **One-time update** installation was initiated during this exercise.
-- `Prod-win01` was already **VM deallocated** in the final Update Manager screenshot; its last assessment remained visible.
-- Periodic assessment requires the VM to be running when a scan occurs; deallocated VMs do not receive fresh assessments.
-- The other three Linux VMs showed **No updates data** and **Periodic assessment: No** in that screenshot. They were not assessed in this exercise.
+- Periodic assessment requires the VM to be running when a scan occurs; deallocated VMs won't receive a new assessments.
 
 **Assessment boundary:** “No pending updates” is a point-in-time Update Manager result, not proof of perpetual patch compliance or absence of vulnerabilities. Existing Windows automatic-update behavior was not changed by enabling periodic assessment.
-
-## Cost management and shutdown
-
-The HomeLab budget is **$200/month**. Azure Update Manager assessments for Azure VMs have no separate per-VM management fee; running VM compute, disks, and applicable networking resources can still incur charges. The operator confirmed **all five VMs were safely deallocated after the exercise**. This final all-VM state was reported by the operator, not re-verified here with a new `az vm list -d` output.
-
-To verify power states before the next session:
-
-```bash
-az vm list -d --query "[].{Name:name,ResourceGroup:resourceGroup,PowerState:powerState}" -o table
-```
-
-Deallocation stops VM compute charges, but managed disks and certain other resources may continue to be billed.
 
 ## Remaining improvements (not yet completed)
 
