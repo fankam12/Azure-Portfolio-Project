@@ -16,7 +16,7 @@ This record documents hands-on Windows Server administration on `Dev-win01`, suc
 From `Prod-mgmt01`, TCP/3389 connectivity succeeded to `10.20.1.5` and `10.10.0.5`. From macOS, separate SSH local forwards were established through `Prod-mgmt01`; both local listeners passed `nc` testing. Windows App authenticated successfully to **both** Windows Server desktops.
 
 ```bash
-# Run in separate macOS terminal windows; substitute the current management VM public IP.
+# Ran in separate macOS terminal windows; substitute the current management VM public IP.
 ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:13389:10.20.1.5:3389 azureadmin@<MGMT-PUBLIC-IP>
 ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:13390:10.10.0.5:3389 azureadmin@<MGMT-PUBLIC-IP>
 
