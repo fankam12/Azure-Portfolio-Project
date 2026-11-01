@@ -25,7 +25,7 @@ nc -vz 127.0.0.1 13389
 nc -vz 127.0.0.1 13390
 ```
 
-Windows App endpoints: `127.0.0.1:13389` for `Dev-win01` and `127.0.0.1:13390` for `Prod-win01`. Neither Windows VM has a public IP. Successful private administration does **not** prove that other internal sources are denied by NSGs.
+Windows App endpoints: `127.0.0.1:13389` for `Dev-win01` and `127.0.0.1:13390` for `Prod-win01`. Neither Windows VM has a public IP. 
 
 ## Dev-win01 — guest operating system inventory
 
