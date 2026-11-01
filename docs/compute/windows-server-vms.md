@@ -126,7 +126,7 @@ The following tests were completed using the existing Azure deployment:
 
 5. In **Windows App** on macOS, create an RDP connection to `127.0.0.1:13389`, with no separate RDP gateway, using the Windows VM's administrator credentials. An authenticated Windows Server desktop session was successfully established.
 
-The `nc` checks prove TCP reachability; the successful Windows App session additionally confirms RDP authentication and interactive access. This test does not establish that every Linux VM can reach every Windows VM, or that `Prod-win01` RDP access has been validated.
+The `nc` checks prove TCP reachability; the successful Windows App session additionally confirms RDP authentication and interactive access. This test does not establish that every Linux VM can reach every Windows VM, or that every other private access path has been validated.
 
 ## VM lifecycle and cost controls
 
@@ -158,17 +158,23 @@ Deallocation stops VM compute billing, but managed disks and some networking res
 - **Cost awareness:** Deallocate test VMs when the session is complete; do not confuse a stopped guest OS with Azure's deallocated compute state.
 - **IaC safety:** Terraform configuration and Terraform state are distinct. Keep credentials and state out of public source control.
 
+## October 31, 2026 — additional validation
+
+Authenticated RDP access from macOS through `Prod-mgmt01` was successfully verified for **both** Windows VMs: `Dev-win01` using `127.0.0.1:13389` and `Prod-win01` using `127.0.0.1:13390`. The Mac-local TCP listeners and private TCP/3389 paths were tested. Windows PowerShell diagnostics, Windows Firewall review, and Device Guard/Event Log investigations were completed on `Dev-win01`. Azure Update Manager showed **No pending updates** for both Windows VMs, and **periodic assessment was enabled** on both. The operator confirmed all five VMs were subsequently deallocated.
+
+**Detailed evidence, commands, results and security caveats:** [Windows Server Administration & Patch Compliance](./windows-server-administration-and-patching.md).
+
 ## Future exercises (not yet validated)
 
-- RDP access and Windows administration for `Prod-win01`.
-- Windows PowerShell administration, service management, event logs, and guest network diagnostics.
-- Windows patch management through Azure Update Manager.
+- Deeper Windows administration and diagnostics on `Prod-win01` (authenticated RDP is complete).
+- Scheduled patch installations, maintenance windows and reboot validation (assessment only completed so far).
 - Azure Monitor, Log Analytics, and alerting for Windows workloads.
 - Azure Backup and restore validation.
 - Additional cross-VM SSH and RDP access paths, with explicit security validation.
 
 ## Related documentation
 
+- [Windows Server Administration & Patch Compliance](./windows-server-administration-and-patching.md)
 - [Compute overview](./README.md)
 - [Private Linux VMs](./private-linux-vms.md)
 - [Windows VM Terraform project](../../terraform/dev-windows-vm/README.md)
