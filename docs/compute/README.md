@@ -16,6 +16,7 @@ The implementation emphasizes private connectivity, controlled administrative ac
 |---|---|---|
 | Private Linux Virtual Machines | Linux VM deployment, SSH authentication, subnet segmentation, private connectivity, and troubleshooting | [View Linux VM Documentation](./private-linux-vms.md) |
 | Windows Server 2022 Virtual Machines | Windows Server infrastructure across management and development environments, including private networking, SSH-tunneled RDP access, and VM lifecycle validation | [View Windows Server Documentation](./windows-server-vms.md) |
+| Windows Server Administration & Patch Compliance | Validated private RDP to both Windows VMs; PowerShell networking, services, event logs, firewall and VBS investigation on Dev-win01; Azure Update Manager assessment and periodic assessment on both | [View Administration & Patching Documentation](./windows-server-administration-and-patching.md) |
 | Windows Server Deployment with Terraform | Infrastructure-as-Code deployment of a private Windows Server 2022 VM using existing Azure networking resources | [View Terraform Project](../../terraform/dev-windows-vm/README.md) |
 
 ## Virtual Machine Inventory
@@ -128,7 +129,7 @@ These VMs provide a controlled environment for Windows Server administration, Az
 
 The VM supports independent testing of Windows Server configurations and Azure compute administration without requiring a directly assigned public IP address.
 
-Private RDP connectivity to `Prod-win01` remains a future validation exercise.
+Authenticated private RDP access to `Prod-win01` was validated on October 31, 2026 through an SSH tunnel via `Prod-mgmt01`.
 
 ### Development Windows Server — Dev-win01
 
@@ -177,7 +178,7 @@ Both Windows Server VMs are configured without public IP addresses.
 
 The `Dev-win01` Terraform configuration creates a source-specific RDP allow rule for the designated management VM. The effective NSG also contains Azure's default `AllowVnetInBound` rule, which may allow additional internal sources.
 
-On October 27, 2026, private RDP administration of `Dev-win01` was successfully validated through SSH local port forwarding from macOS via `Prod-mgmt01`.
+On October 27, 2026, private RDP administration of `Dev-win01` was validated through SSH local port forwarding from macOS via `Prod-mgmt01`. On October 31, 2026, authenticated private RDP was validated again for `Dev-win01` and newly validated for `Prod-win01`.
 
 The validation included TCP/3389 connectivity, local SSH tunnel connectivity, authenticated Windows Server desktop access, and VM deallocation after testing.
 
@@ -205,7 +206,7 @@ The compute environment supports practical exercises in Azure infrastructure ope
 | Networking | Private IP validation, subnet placement, VNet peering connectivity |
 | Security | NSG rule inspection, effective security rule analysis, administrative access validation |
 | Linux Administration | SSH authentication, agent forwarding, private SSH connectivity |
-| Windows Administration | Windows Server configuration, validated SSH-tunneled RDP connectivity, future OS administration |
+| Windows Administration | Windows Server configuration, authenticated SSH-tunneled RDP to both Windows VMs, PowerShell OS/network/service/event/firewall diagnostics on Dev-win01 |
 | Infrastructure as Code | Terraform initialization, validation, planning, and controlled deployment |
 | Troubleshooting | Network connectivity investigation, deployment errors, configuration issues |
 | Cost Management | VM deallocation, resource utilization review, cost-conscious lab operations |
@@ -216,7 +217,7 @@ Validation procedures and troubleshooting findings are recorded within the relev
 
 The HomeLab uses Azure VM lifecycle operations to manage compute resource utilization and operating costs.
 
-On October 27, 2026, both `Dev-win01` and `Prod-mgmt01` were confirmed in the `VM deallocated` state following the private RDP validation exercise.
+On October 27, 2026, both `Dev-win01` and `Prod-mgmt01` were confirmed in the `VM deallocated` state following private RDP validation. Following the October 31 administration and patch assessment exercises, the operator reported safely deallocating all five VMs (not independently re-verified with a final CLI inventory).
 
 Deallocating virtual machines releases their allocated compute capacity and stops VM compute billing while retaining associated resources such as managed disks.
 
@@ -237,6 +238,7 @@ Compute implementations follow a structured workflow:
 
 - [Private Linux Virtual Machines](./private-linux-vms.md)
 - [Windows Server 2022 — Private Administration & Terraform](./windows-server-vms.md)
+- [Windows Server Administration & Patch Compliance](./windows-server-administration-and-patching.md)
 - [Windows Server 2022 Terraform Deployment](../../terraform/dev-windows-vm/README.md)
 
 ## Security & Responsible Testing
