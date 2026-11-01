@@ -155,12 +155,10 @@ Deallocation stops VM compute billing, but managed disks and some networking res
 - **Rule intent versus effective behavior:** A source-specific RDP allow rule coexists with Azure's default VNet allowance. Reviewing the effective NSG is necessary to understand the actual network policy.
 - **Private administration:** SSH local port forwarding allowed an authenticated Windows RDP session without a public IP on the Windows VM.
 - **Layered validation:** Confirm VM state, NSGs, TCP connectivity, local tunnel forwarding, and finally the RDP desktop. Each step tests a different layer.
-- **Cost awareness:** Deallocate test VMs when the session is complete; do not confuse a stopped guest OS with Azure's deallocated compute state.
-- **IaC safety:** Terraform configuration and Terraform state are distinct. Keep credentials and state out of public source control.
 
-## October 31, 2026 — additional validation
+## Additional validation
 
-Authenticated RDP access from macOS through `Prod-mgmt01` was successfully verified for **both** Windows VMs: `Dev-win01` using `127.0.0.1:13389` and `Prod-win01` using `127.0.0.1:13390`. The Mac-local TCP listeners and private TCP/3389 paths were tested. Windows PowerShell diagnostics, Windows Firewall review, and Device Guard/Event Log investigations were completed on `Dev-win01`. Azure Update Manager showed **No pending updates** for both Windows VMs, and **periodic assessment was enabled** on both. The operator confirmed all five VMs were subsequently deallocated.
+Authenticated RDP access from macOS through `Prod-mgmt01` was successfully verified for **both** Windows VMs: `Dev-win01` using `127.0.0.1:13389` and `Prod-win01` using `127.0.0.1:13390`. The Mac-local TCP listeners and private TCP/3389 paths were tested. Windows PowerShell diagnostics, Windows Firewall review, and Device Guard/Event Log investigations were completed on `Dev-win01`. Azure Update Manager showed **No pending updates** for both Windows VMs, and **periodic assessment was enabled** on both. 
 
 **Detailed evidence, commands, results and security caveats:** [Windows Server Administration & Patch Compliance](./windows-server-administration-and-patching.md).
 
@@ -179,7 +177,3 @@ Authenticated RDP access from macOS through `Prod-mgmt01` was successfully verif
 - [Private Linux VMs](./private-linux-vms.md)
 - [Windows VM Terraform project](../../terraform/dev-windows-vm/README.md)
 - [Portfolio home](../../README.md)
-
-## Security and responsible testing
-
-This documentation describes a personal Azure HomeLab. It omits administrator passwords, SSH private keys, Terraform state, and subscription identifiers. It records only validated actions and distinguishes planned exercises from completed tests.
