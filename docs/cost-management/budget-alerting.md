@@ -2,7 +2,7 @@
 
 ## Overview
 
-This implementation establishes subscription-level cost governance for the Azure HomeLab environment using **Azure Cost Management**.
+This implementation establishes subscription-level cost governance for my HomeLab environment using **Azure Cost Management**.
 
 A monthly Azure Budget is configured at the subscription scope to monitor spending across all resource groups and workloads within the subscription.
 
@@ -58,7 +58,7 @@ Because the budget is configured at the **subscription scope**, costs generated 
 | Category      | Cost                     |
 | Start Date    | August 1, 2026           |
 
-The budget was configured at the HomeLab subscription scope, allowing Azure Cost Management to monitor costs generated across the entire environment.
+The budget was configured at my HomeLab subscription scope, allowing Azure Cost Management to monitor costs generated across the entire environment.
 
 ---
 
