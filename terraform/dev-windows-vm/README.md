@@ -25,7 +25,7 @@ On October 27, 2026, SSH-tunneled RDP connectivity to the deployed Windows Serve
 | Private IP | `10.20.1.5` (Static) |
 | OS Disk | Standard SSD |
 | Network Security Group | `AppSubnet_NSG` |
-| Public IP | `Dev-win01-PublicIP` (`138.91.123.223`, static Standard SKU; added November 14) |
+| Public IP | `Dev-win01-PublicIP` (`<SERVER_PUBLIC_IP>`, static Standard SKU; added November 14) |
 | Deployment Method | Terraform |
 | Administrative Access | Direct Windows App RDP from approved home public IP; private management RDP through `Prod-mgmt01` retained |
 
@@ -60,9 +60,9 @@ This was the original, successfully tested private-only architecture. It is reta
 
 ```text
 macOS Windows App
-Home public IPv4: 69.250.140.202 (approved /32)
+Home public IPv4: <LOCAL_MAC_HOME_PUBLIC_IP> (approved /32)
         |
-        | Direct TCP/3389 to 138.91.123.223
+        | Direct TCP/3389 to <SERVER_PUBLIC_IP>
         v
 Dev-win01-PublicIP (Standard, static)
         |
@@ -75,7 +75,7 @@ Dev-win01 NIC: 10.20.1.5 (static private IP)
         |
         v
 Windows Firewall: Remote Desktop inbound scoped to
-69.250.140.202 and 10.10.0.4; NLA required
+<LOCAL_MAC_HOME_PUBLIC_IP> and 10.10.0.4; NLA required
         |
         v
 Authenticated Windows Server 2022 desktop
@@ -113,13 +113,13 @@ The Windows VM has a static public IP, but inbound RDP is restricted by both the
 
 | Priority | Rule | Source | Destination | Action |
 |---|---|---|---|---|
-| 105 | `Allow-RDP-MacBook` | `69.250.140.202/32` | `10.20.1.5/32` | Allow |
+| 105 | `Allow-RDP-MacBook` | `<LOCAL_MAC_HOME_PUBLIC_IP>/32` | `10.20.1.5/32` | Allow |
 | 110 | `Allow-RDP-ManagementSubnet` | `10.10.0.4/32` | `10.20.1.5` | Allow |
 | 120 | `Deny-RDP-NonManagement` | `*` | `10.20.1.5/32` | Deny |
 
 Azure evaluates lower priority numbers first. The explicit deny at priority 120 prevents other TCP/3389 sources from relying on the default `AllowVnetInBound` rule for this destination. The management rule's destination format (`10.20.1.5` without `/32`) is deliberately preserved from the existing Terraform configuration; the final plan reported no drift.
 
-Windows Remote Desktop requires Network Level Authentication (NLA). Enabled inbound Remote Desktop Windows Firewall rules were scoped to `69.250.140.202` and `10.10.0.4`. This is defense in depth; NSG rules alone are not the complete effective access policy.
+Windows Remote Desktop requires Network Level Authentication (NLA). Enabled inbound Remote Desktop Windows Firewall rules were scoped to `<LOCAL_MAC_HOME_PUBLIC_IP>` and `10.10.0.4`. This is defense in depth; NSG rules alone are not the complete effective access policy.
 
 ### Original Network Security — October 27, 2026 (Historical)
 
@@ -333,9 +333,9 @@ The original SSH-tunnel approach kept RDP private but required maintaining a sep
 
 ### Azure CLI Configuration Changes
 
-1. Created the existing Azure resource `Dev-win01-PublicIP` as a static Standard SKU IPv4 address (`138.91.123.223`).
+1. Created the existing Azure resource `Dev-win01-PublicIP` as a static Standard SKU IPv4 address (`<SERVER_PUBLIC_IP>`).
 2. Associated it with NIC `Dev-win01-nic`, IP configuration `internal`, preserving private IP `10.20.1.5`.
-3. Added `Allow-RDP-MacBook` at NSG priority 105, permitting TCP/3389 only from the approved home public IPv4 `69.250.140.202/32`.
+3. Added `Allow-RDP-MacBook` at NSG priority 105, permitting TCP/3389 only from the approved home public IPv4 `<LOCAL_MAC_HOME_PUBLIC_IP>/32`.
 4. Preserved `Allow-RDP-ManagementSubnet` at priority 110, allowing private RDP from `Prod-mgmt01` (`10.10.0.4/32`).
 5. Added `Deny-RDP-NonManagement` at priority 120, denying other inbound TCP/3389 traffic to `10.20.1.5/32`.
 6. Confirmed Windows RDP was enabled with NLA required; restricted enabled inbound Remote Desktop firewall rules to the home public IPv4 and management VM.
@@ -346,7 +346,7 @@ The original SSH-tunnel approach kept RDP private but required maintaining a sep
 |---|---|
 | Network Watcher IP flow, approved home source to TCP/3389 | Allowed by `Allow-RDP-MacBook` |
 | Network Watcher IP flow, unapproved source `8.8.8.8` to TCP/3389 | Denied by `Deny-RDP-NonManagement` |
-| Windows App from macOS directly to `138.91.123.223` | Successful authenticated RDP session, no SSH tunnel |
+| Windows App from macOS directly to `<SERVER_PUBLIC_IP>` | Successful authenticated RDP session, no SSH tunnel |
 | `Dev-win01` to `Prod-mgmt01` TCP/22 | Successful |
 | `Dev-win01` to `Dev-app01` TCP/22 | Successful |
 | `Dev-win01` to `Prod-win01` TCP/3389 | Successful |

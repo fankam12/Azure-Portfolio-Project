@@ -21,7 +21,7 @@ This project extends an Azure HomeLab with two Windows Server 2022 Datacenter VM
 | Subnet | `ManagementSubnet` (`10.10.0.0/24`) | `AppSubnet` (`10.20.1.0/24`) |
 | Private IP | `10.10.0.5` | `10.20.1.5` (static) |
 | NIC | `Prod-win01VMNic` | `Dev-win01-nic` |
-| Public IP | None | `138.91.123.223` (Standard, static; added Nov 14, 2026) |
+| Public IP | None | `<SERVER_PUBLIC_IP>` (Standard, static; added Nov 14, 2026) |
 | Deployment evidence | Existing Azure deployment | Terraform configuration in `terraform/dev-windows-vm/` |
 
 `Prod-mgmt01` is an Ubuntu Linux management VM at `10.10.0.4`, with a public SSH entry point restricted by the management subnet's NSG. The two VNets are peered. The existing `Dev-app01` and `Dev-data01` Linux VMs occupy the development network, with additional data-tier security restrictions documented separately.
@@ -47,12 +47,12 @@ The original macOS-to-Windows workflow required an SSH tunnel through `Prod-mgmt
 
 | Change | Why |
 |---|---|
-| Created `Dev-win01-PublicIP` (`138.91.123.223`), Standard SKU, static, in `DevLab_RG` | Provide a stable Windows App endpoint without an SSH tunnel; a public IPv4 address incurs charges |
+| Created `Dev-win01-PublicIP` (`<SERVER_PUBLIC_IP>`), Standard SKU, static, in `DevLab_RG` | Provide a stable Windows App endpoint without an SSH tunnel; a public IPv4 address incurs charges |
 | Associated the public IP with `Dev-win01-nic` IP configuration `internal` | Keep existing static private IP `10.20.1.5`, subnet, and VNet peering |
-| Added `Allow-RDP-MacBook` to `AppSubnet_NSG` (priority 105) | Permit inbound TCP/3389 only from the approved home public IPv4 `69.250.140.202/32` to `10.20.1.5/32` |
+| Added `Allow-RDP-MacBook` to `AppSubnet_NSG` (priority 105) | Permit inbound TCP/3389 only from the approved home public IPv4 `<LOCAL_MAC_HOME_PUBLIC_IP>/32` to `10.20.1.5/32` |
 | Retained `Allow-RDP-ManagementSubnet` (priority 110) | Preserve RDP access from `Prod-mgmt01` (`10.10.0.4/32`) |
 | Added `Deny-RDP-NonManagement` (priority 120) | Deny other inbound TCP/3389 sources to `10.20.1.5/32`, including sources otherwise covered by Azure's default `AllowVnetInBound` |
-| Scoped enabled Windows Remote Desktop inbound firewall rules to `69.250.140.202` and `10.10.0.4` | Add guest-OS filtering alongside Azure NSG controls |
+| Scoped enabled Windows Remote Desktop inbound firewall rules to `<LOCAL_MAC_HOME_PUBLIC_IP>` and `10.10.0.4` | Add guest-OS filtering alongside Azure NSG controls |
 | Verified RDP enabled and NLA required | Confirm remote desktop authentication prerequisites |
 | Retained public SSH to `Prod-mgmt01` | Keep existing Linux management access; SSH login from the Mac was tested |
 
@@ -61,11 +61,11 @@ The original macOS-to-Windows workflow required an SSH tunnel through `Prod-mgmt
 ### Current RDP architecture
 
 ```text
-MacBook (Windows App) / home public IPv4 69.250.140.202
+MacBook (Windows App) / home public IPv4 <LOCAL_MAC_HOME_PUBLIC_IP>
     |
     | Internet -> TCP/3389; AppSubnet_NSG source /32 allow
     v
-Dev-win01 public IP 138.91.123.223
+Dev-win01 public IP <SERVER_PUBLIC_IP>
     |
     v
 Dev-win01 private IP 10.20.1.5 (AppSubnet, DevLab_VNet)
@@ -86,23 +86,23 @@ Prod-win01 remains private-only.
 
 ```bash
 az network public-ip create --resource-group DevLab_RG --name Dev-win01-PublicIP --location eastus --sku Standard --allocation-method Static --version IPv4
-az network nsg rule create --resource-group DevLab_RG --nsg-name AppSubnet_NSG --name Allow-RDP-MacBook --priority 105 --direction Inbound --access Allow --protocol Tcp --source-address-prefixes 69.250.140.202/32 --source-port-ranges '*' --destination-address-prefixes 10.20.1.5/32 --destination-port-ranges 3389
+az network nsg rule create --resource-group DevLab_RG --nsg-name AppSubnet_NSG --name Allow-RDP-MacBook --priority 105 --direction Inbound --access Allow --protocol Tcp --source-address-prefixes <LOCAL_MAC_HOME_PUBLIC_IP>/32 --source-port-ranges '*' --destination-address-prefixes 10.20.1.5/32 --destination-port-ranges 3389
 az network nic ip-config update --resource-group DevLab_RG --nic-name Dev-win01-nic --name internal --public-ip-address Dev-win01-PublicIP
-az network watcher test-ip-flow --resource-group DevLab_RG --vm Dev-win01 --direction Inbound --protocol TCP --local 10.20.1.5:3389 --remote 69.250.140.202:50000 --output json
+az network watcher test-ip-flow --resource-group DevLab_RG --vm Dev-win01 --direction Inbound --protocol TCP --local 10.20.1.5:3389 --remote <LOCAL_MAC_HOME_PUBLIC_IP>:50000 --output json
 az network watcher test-ip-flow --resource-group DevLab_RG --vm Dev-win01 --direction Inbound --protocol TCP --local 10.20.1.5:3389 --remote 8.8.8.8:50000 --output json
-az vm run-command invoke --resource-group DevLab_RG --name Dev-win01 --command-id RunPowerShellScript --scripts 'Get-NetFirewallRule -DisplayGroup "Remote Desktop" | Where-Object { $_.Enabled -eq "True" -and $_.Direction -eq "Inbound" } | Set-NetFirewallRule -RemoteAddress "69.250.140.202","10.10.0.4"' --output json
+az vm run-command invoke --resource-group DevLab_RG --name Dev-win01 --command-id RunPowerShellScript --scripts 'Get-NetFirewallRule -DisplayGroup "Remote Desktop" | Where-Object { $_.Enabled -eq "True" -and $_.Direction -eq "Inbound" } | Set-NetFirewallRule -RemoteAddress "<LOCAL_MAC_HOME_PUBLIC_IP>","10.10.0.4"' --output json
 ```
 
 ### Validation results
 
 | Test | Observed result |
 |---|---|
-| Approved public IP `69.250.140.202` to `10.20.1.5:3389` | Network Watcher **Allow**, rule `Allow-RDP-MacBook` |
+| Approved public IP `<LOCAL_MAC_HOME_PUBLIC_IP>` to `10.20.1.5:3389` | Network Watcher **Allow**, rule `Allow-RDP-MacBook` |
 | Unapproved public IP `8.8.8.8` to `10.20.1.5:3389` | Network Watcher **Deny**, rule `Deny-RDP-NonManagement` |
 | RDP and NLA | Both enabled (`True`) |
-| Windows Firewall enabled Remote Desktop rules | TCP User Mode, TCP Shadow, and UDP User Mode restricted to `69.250.140.202` and `10.10.0.4` |
+| Windows Firewall enabled Remote Desktop rules | TCP User Mode, TCP Shadow, and UDP User Mode restricted to `<LOCAL_MAC_HOME_PUBLIC_IP>` and `10.10.0.4` |
 | Other enabled inbound TCP allow rules covering 3389 | Audit showed only scoped RDP TCP rules |
-| MacBook Windows App to `138.91.123.223` | **Successful authenticated desktop connection**, without SSH tunnel |
+| MacBook Windows App to `<SERVER_PUBLIC_IP>` | **Successful authenticated desktop connection**, without SSH tunnel |
 | `Dev-win01` to `Prod-mgmt01` `10.10.0.4:22` | `TcpTestSucceeded: True` |
 | `Dev-win01` to `Dev-app01` `10.20.1.4:22` | `TcpTestSucceeded: True` |
 | `Dev-win01` to `Prod-win01` `10.10.0.5:3389` | `TcpTestSucceeded: True` (port reachability, not authenticated RDP) |

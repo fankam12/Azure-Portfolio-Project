@@ -144,7 +144,7 @@ Authenticated private RDP access to `Prod-win01` was validated on October 31, 20
 | Virtual Network | `Devlab_VNet` |
 | Subnet | `AppSubnet` |
 | Private IP | `10.20.1.5` |
-| Public IP Address | `138.91.123.223` (added Nov 14, 2026) |
+| Public IP Address | `<SERVER_PUBLIC_IP>` (added Nov 14, 2026) |
 | Network Interface | `Dev-win01-nic` |
 | Deployment Method | Terraform |
 
@@ -164,7 +164,7 @@ The original October administrative workflow used an SSH tunnel through `Prod-mg
 
 ## Updated Changes — November 14, 2026
 
-**Why:** I compared the original private SSH-tunnel workflow with a more convenient direct Windows App connection for routine Windows Server administration. The tunnel was secure but required extra setup and an active terminal session. I tested direct RDP to `Dev-win01` using static public IP `138.91.123.223`, with Azure NSG source restriction to home IPv4 `69.250.140.202/32`, guest Windows Firewall source restrictions, and Network Level Authentication. I preserved private IP `10.20.1.5`, VNet peering, and SSH to `Prod-mgmt01`. Authorized RDP and unauthorized-source NSG checks passed, direct Windows App login succeeded, and private connectivity tests confirmed intended allow/deny behavior. **This is a usability-versus-exposure tradeoff; public RDP has residual risk.**
+**Why:** I compared the original private SSH-tunnel workflow with a more convenient direct Windows App connection for routine Windows Server administration. The tunnel was secure but required extra setup and an active terminal session. I tested direct RDP to `Dev-win01` using static public IP `<SERVER_PUBLIC_IP>`, with Azure NSG source restriction to home IPv4 `<LOCAL_MAC_HOME_PUBLIC_IP>/32`, guest Windows Firewall source restrictions, and Network Level Authentication. I preserved private IP `10.20.1.5`, VNet peering, and SSH to `Prod-mgmt01`. Authorized RDP and unauthorized-source NSG checks passed, direct Windows App login succeeded, and private connectivity tests confirmed intended allow/deny behavior. **This is a usability-versus-exposure tradeoff; public RDP has residual risk.**
 
 See [the detailed change log, validation, commands and rollback](./windows-server-vms.md#updated-changes--secure-rdp-access--ease-of-administration-november-14-2026).
 
