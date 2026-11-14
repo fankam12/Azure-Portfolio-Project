@@ -4,7 +4,7 @@
 
 This project demonstrates Infrastructure-as-Code (IaC) deployment of a Windows Server 2022 virtual machine into an existing Microsoft Azure environment using Terraform.
 
-The deployment integrates with existing Azure networking resources while maintaining private connectivity and controlled administrative access.
+The deployment integrates with existing Azure networking resources while maintaining private connectivity and controlled administrative access. The original October 27, 2026 deployment used private-only RDP through an SSH tunnel; the November 14, 2026 update added direct RDP through a tightly source-restricted public IP while retaining the private management path.
 
 The implementation demonstrates practical Azure infrastructure engineering, including VM provisioning, static private IP configuration, Network Security Group management, Terraform state considerations, and private Windows Server administration.
 
@@ -25,11 +25,11 @@ On October 27, 2026, SSH-tunneled RDP connectivity to the deployed Windows Serve
 | Private IP | `10.20.1.5` (Static) |
 | OS Disk | Standard SSD |
 | Network Security Group | `AppSubnet_NSG` |
-| Public IP | None |
+| Public IP | `Dev-win01-PublicIP` (`138.91.123.223`, static Standard SKU; added November 14) |
 | Deployment Method | Terraform |
-| Administrative Access | SSH-tunneled RDP through `Prod-mgmt01` |
+| Administrative Access | Direct Windows App RDP from approved home public IP; private management RDP through `Prod-mgmt01` retained |
 
-### Administrative Connectivity
+### Original Administrative Connectivity — October 27, 2026 (Historical)
 
 ```text
 macOS Workstation
@@ -54,7 +54,37 @@ Private IP: 10.20.1.5
 Authenticated RDP Desktop
 ```
 
-This architecture enables remote administration of a private Windows Server without assigning a public IP address to the Windows VM.
+This was the original, successfully tested private-only architecture. It is retained for comparison; it is **not** the current public-IP configuration.
+
+### Current Administrative Connectivity — November 14, 2026
+
+```text
+macOS Windows App
+Home public IPv4: 69.250.140.202 (approved /32)
+        |
+        | Direct TCP/3389 to 138.91.123.223
+        v
+Dev-win01-PublicIP (Standard, static)
+        |
+        v
+AppSubnet_NSG: allow approved /32 at priority 105
+                 deny other RDP at priority 120
+        |
+        v
+Dev-win01 NIC: 10.20.1.5 (static private IP)
+        |
+        v
+Windows Firewall: Remote Desktop inbound scoped to
+69.250.140.202 and 10.10.0.4; NLA required
+        |
+        v
+Authenticated Windows Server 2022 desktop
+
+Alternate private path: Prod-mgmt01 (10.10.0.4)
+  -- VNet peering / TCP 3389 --> Dev-win01 (10.20.1.5)
+```
+
+The home address is the public IPv4 of the home network (NAT), **not** a unique identifier for a specific Mac. If the ISP changes that address, both the NSG allow rule and Windows Firewall scope must be updated. Direct public RDP increases exposure compared with private-only SSH tunneling, even with source restrictions; this lab setup is not a recommendation to expose RDP broadly.
 
 ## Terraform Resources
 
@@ -62,7 +92,8 @@ Terraform provisions and manages:
 
 - Azure Windows virtual machine.
 - Azure network interface with a static private IP address.
-- Custom Network Security Group rule permitting RDP from the designated management VM.
+- Three custom Network Security Group rules permitting direct RDP from the approved home IP and private management RDP, while denying other inbound RDP to the VM.
+- NIC association to the existing static public IP through a Terraform data source. Terraform references the public IP but does not manage its lifecycle.
 
 Existing resource groups, virtual networks, and subnets are referenced using Terraform data sources rather than recreated.
 
@@ -70,53 +101,37 @@ Existing resource groups, virtual networks, and subnets are referenced using Ter
 
 - Reuse existing Azure infrastructure to avoid unnecessary resource duplication.
 - Assign a static private IP address for predictable administrative connectivity.
-- Deploy the Windows Server without a public IP address.
-- Configure a source-specific RDP allow rule.
-- Use SSH local port forwarding for administration from macOS.
+- Originally deploy the Windows Server without a public IP address and use SSH local port forwarding from macOS (October 27).
+- Later attach a static Standard SKU public IP to test more convenient direct Windows App RDP, restricted to an approved home public IPv4 (November 14).
+- Retain private RDP from `Prod-mgmt01` and enforce source restrictions in both the Azure NSG and Windows Firewall.
 - Supply the Windows administrator password through a sensitive Terraform variable.
 - Keep active Terraform state and credentials outside the public GitHub repository.
 
-## Network Security
+## Network Security — Current Configuration
 
-The Windows VM does not have a public IP address.
+The Windows VM has a static public IP, but inbound RDP is restricted by both the subnet NSG and the Windows Firewall. The `AppSubnet_NSG` includes these custom TCP/3389 rules for `Dev-win01`:
 
-The Terraform configuration creates a custom inbound rule in `AppSubnet_NSG` with the following configuration:
+| Priority | Rule | Source | Destination | Action |
+|---|---|---|---|---|
+| 105 | `Allow-RDP-MacBook` | `69.250.140.202/32` | `10.20.1.5/32` | Allow |
+| 110 | `Allow-RDP-ManagementSubnet` | `10.10.0.4/32` | `10.20.1.5` | Allow |
+| 120 | `Deny-RDP-NonManagement` | `*` | `10.20.1.5/32` | Deny |
 
-| Setting | Value |
-|---|---|
-| Rule Name | `Allow-RDP-ManagementSubnet` |
-| Priority | `110` |
-| Direction | Inbound |
-| Protocol | TCP |
-| Source | `10.10.0.4/32` |
-| Destination | `10.20.1.5` |
-| Destination Port | `3389` |
-| Action | Allow |
+Azure evaluates lower priority numbers first. The explicit deny at priority 120 prevents other TCP/3389 sources from relying on the default `AllowVnetInBound` rule for this destination. The management rule's destination format (`10.20.1.5` without `/32`) is deliberately preserved from the existing Terraform configuration; the final plan reported no drift.
 
-### Effective NSG Behavior
+Windows Remote Desktop requires Network Level Authentication (NLA). Enabled inbound Remote Desktop Windows Firewall rules were scoped to `69.250.140.202` and `10.10.0.4`. This is defense in depth; NSG rules alone are not the complete effective access policy.
 
-The custom rule explicitly permits RDP traffic from the management VM.
+### Original Network Security — October 27, 2026 (Historical)
 
-However, the effective NSG also contains Azure's default `AllowVnetInBound` rule, which permits traffic matching the `VirtualNetwork` service tag.
-
-During validation, the effective `VirtualNetwork` tag included both peered VNet address spaces:
-
-- `10.10.0.0/16` — Management network.
-- `10.20.0.0/16` — Development network.
-
-Consequently, the custom RDP rule does not exclusively restrict all internal RDP traffic to `10.10.0.4/32`. Other internal sources may also match the default allow rule.
-
-This behavior is important when evaluating effective security controls. Network Security Group permissions are determined by rule priority, matching criteria, and the complete effective rule set—not solely by an individual custom rule.
-
-The validated administration method uses SSH tunneling through the management VM rather than exposing RDP directly to the internet.
+The initial Windows VM had **no public IP** and was administered by SSH local port forwarding through `Prod-mgmt01`. The original priority-110 management allow rule was present, but Azure's default `AllowVnetInBound` rule could also match traffic from peered VNet address spaces (`10.10.0.0/16` and `10.20.0.0/16`). This observation motivated testing more explicit RDP controls rather than assuming a single source-specific allow rule excluded all other sources.
 
 ## Project Files
 
 | File | Purpose |
 |---|---|
 | `main.tf` | Windows Server VM deployment |
-| `network.tf` | Network interface and static IP configuration |
-| `security.tf` | Custom RDP NSG rule |
+| `network.tf` | Network interface, static private IP, and data-source reference to existing public IP |
+| `security.tf` | Three source-specific RDP allow/deny NSG rules |
 | `providers.tf` | AzureRM provider configuration |
 | `variables.tf` | Sensitive administrator password input |
 | `versions.tf` | Terraform and provider version requirements |
@@ -168,7 +183,7 @@ This would support more consistent state management and reduce dependency on a s
 
 Remote state migration has not yet been implemented.
 
-## Infrastructure Validation — October 27, 2026
+## Original Infrastructure Validation — October 27, 2026 (Historical)
 
 The deployed Windows Server was validated using Azure CLI, Linux network diagnostics, SSH local port forwarding, and Windows App on macOS.
 
@@ -302,18 +317,69 @@ Virtual machines were deallocated after testing to minimize unnecessary compute 
 
 - Reused existing Azure networking resources.
 - Used a static private IP for predictable administrative connectivity.
-- Avoided assigning a public IP to the Windows Server.
-- Created a source-specific RDP NSG rule while documenting the broader effective NSG behavior.
-- Validated administrative access through an SSH tunnel.
+- Originally avoided assigning a public IP and validated SSH-tunneled RDP (October 27).
+- Later attached a source-restricted public IP for direct RDP while retaining the private management path (November 14).
+- Evaluated effective NSG behavior and added an explicit deny rule for other RDP sources.
 - Used a sensitive Terraform variable instead of hardcoding the administrator password.
 - Removed the Azure subscription ID from version-controlled configuration.
 - Preserved active Terraform state outside the public repository.
 - Verified VM deallocation after completing the lab.
 
+## Updated Changes — Secure Direct RDP & Terraform Reconciliation (November 14, 2026)
+
+### Why the Change Was Made
+
+The original SSH-tunnel approach kept RDP private but required maintaining a separate SSH forwarding session before opening Windows App on macOS. The November 14 exercise compared that approach with a more convenient direct RDP workflow while retaining narrowly scoped network access and the existing private management option.
+
+### Azure CLI Configuration Changes
+
+1. Created the existing Azure resource `Dev-win01-PublicIP` as a static Standard SKU IPv4 address (`138.91.123.223`).
+2. Associated it with NIC `Dev-win01-nic`, IP configuration `internal`, preserving private IP `10.20.1.5`.
+3. Added `Allow-RDP-MacBook` at NSG priority 105, permitting TCP/3389 only from the approved home public IPv4 `69.250.140.202/32`.
+4. Preserved `Allow-RDP-ManagementSubnet` at priority 110, allowing private RDP from `Prod-mgmt01` (`10.10.0.4/32`).
+5. Added `Deny-RDP-NonManagement` at priority 120, denying other inbound TCP/3389 traffic to `10.20.1.5/32`.
+6. Confirmed Windows RDP was enabled with NLA required; restricted enabled inbound Remote Desktop firewall rules to the home public IPv4 and management VM.
+
+### Validation Results
+
+| Test | Observed result |
+|---|---|
+| Network Watcher IP flow, approved home source to TCP/3389 | Allowed by `Allow-RDP-MacBook` |
+| Network Watcher IP flow, unapproved source `8.8.8.8` to TCP/3389 | Denied by `Deny-RDP-NonManagement` |
+| Windows App from macOS directly to `138.91.123.223` | Successful authenticated RDP session, no SSH tunnel |
+| `Dev-win01` to `Prod-mgmt01` TCP/22 | Successful |
+| `Dev-win01` to `Dev-app01` TCP/22 | Successful |
+| `Dev-win01` to `Prod-win01` TCP/3389 | Successful |
+| `Dev-win01` to `Dev-data01` TCP/22 | Blocked by existing subnet segmentation, as intended |
+| Mac SSH to `Prod-mgmt01` | Successful |
+
+The connectivity checks confirm the observed paths at test time; they are not a claim that every network path or port is permitted.
+
+### Reconcile Azure CLI Changes with Terraform
+
+The public IP and two new NSG rules were initially created outside Terraform. To avoid drift and duplicate-rule creation:
+
+- Updated `network.tf` to use `data "azurerm_public_ip" "dev_win01_public_ip"` and set the NIC's `public_ip_address_id`. The public IP itself remains externally managed.
+- Updated `security.tf` to declare the existing home allow and other-source deny rules, preserving the existing management allow rule.
+- Ran `terraform validate` successfully.
+- Imported both existing NSG rules into **local Terraform state** using `terraform import` and their Azure resource IDs; importing did not create or change Azure resources.
+- Reviewed the first `terraform plan`: `0 to add, 2 to change, 0 to destroy`, with only removal of two existing NSG descriptions proposed.
+- Added those exact descriptions to `security.tf` and reran `terraform plan`, which reported **`No changes. Your infrastructure matches the configuration.`**
+- Did **not** run `terraform apply`, because no infrastructure changes were required.
+- Committed and pushed `network.tf` and `security.tf` to `main` in commit [`eb8e050`](https://github.com/fankam12/Azure-Portfolio-Project/commit/eb8e050).
+
+**State boundary:** Terraform state, state backups, and administrator secrets remain outside the public repository. The GitHub checkout is source control, not a substitute for the existing local state. Do not run `terraform apply` from a fresh clone without first configuring the correct backend or reconciling state.
+
+### Operational Tradeoffs & Rollback
+
+Direct RDP removes the SSH-tunnel setup step but exposes a public RDP endpoint to the approved home network. NSG restrictions, NLA, and Windows Firewall source scoping reduce exposure; the original private SSH-tunnel workflow remains a useful alternative. The public IP may incur charges even when the VM is deallocated.
+
+If direct RDP is no longer needed, remove the NIC public IP association through a reviewed infrastructure change and remove the home-source RDP exception. Confirm the private management path before making access-control changes. Do not delete the public IP or NSG rules blindly while they are still referenced by Terraform or operational workflows.
+
 ## Future Improvements
 
 - Introduce Azure Storage remote Terraform state with appropriate access controls.
-- Replace environment-specific values with reusable Terraform variables.
+- Replace environment-specific values, particularly the approved home public IPv4, with reusable Terraform variables and a controlled update procedure.
 - Add automated Terraform formatting, validation, and security checks.
 - Integrate Azure Monitor, patch management, and backup policies.
 - Expand infrastructure deployment through reusable Terraform modules.
@@ -330,6 +396,6 @@ Virtual machines were deallocated after testing to minimize unnecessary compute 
 
 This project uses personal Azure HomeLab infrastructure for independent learning and validation.
 
-Administrator credentials, SSH private keys, Azure subscription identifiers, and active Terraform state are excluded from the published documentation.
+Administrator credentials, SSH private keys, Azure subscription identifiers, and active Terraform state are excluded from the published documentation. The approved home public IPv4 is currently recorded in version-controlled configuration for this lab; it is not a per-device identity.
 
 The repository distinguishes validated deployment outcomes from future planned improvements.
