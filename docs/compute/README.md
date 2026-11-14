@@ -15,7 +15,7 @@ The implementation emphasizes private connectivity, controlled administrative ac
 | Implementation | Description | Documentation |
 |---|---|---|
 | Private Linux Virtual Machines | Linux VM deployment, SSH authentication, subnet segmentation, private connectivity, and troubleshooting | [View Linux VM Documentation](./private-linux-vms.md) |
-| Windows Server 2022 Virtual Machines | Windows Server infrastructure across management and development environments, including private networking, SSH-tunneled RDP access, and VM lifecycle validation | [View Windows Server Documentation](./windows-server-vms.md) |
+| Windows Server 2022 Virtual Machines | Windows Server infrastructure across management and development environments, including initial SSH-tunneled RDP, the November 2026 restricted public RDP change for Dev-win01, and VM lifecycle validation | [View Windows Server Documentation](./windows-server-vms.md) |
 | Windows Server Administration & Patch Compliance | Validated private RDP to both Windows VMs; PowerShell networking, services, event logs, firewall and VBS investigation on Dev-win01; Azure Update Manager assessment and periodic assessment on both | [View Administration & Patching Documentation](./windows-server-administration-and-patching.md) |
 | Windows Server Deployment with Terraform | Infrastructure-as-Code deployment of a private Windows Server 2022 VM using existing Azure networking resources | [View Terraform Project](../../terraform/dev-windows-vm/README.md) |
 
@@ -28,10 +28,10 @@ The Azure HomeLab currently includes three Ubuntu Linux virtual machines and two
 | `Prod-mgmt01` | Ubuntu 22.04 LTS | `HomeLab_RG` | `10.10.0.4` | Yes | Management and private administrative access |
 | `Prod-win01` | Windows Server 2022 Datacenter | `HomeLab_RG` | `10.10.0.5` | No | Windows Server administration and configuration testing |
 | `Dev-app01` | Ubuntu 22.04 LTS | `DevLab_RG` | `10.20.1.4` | No | Private application-tier workload |
-| `Dev-win01` | Windows Server 2022 Datacenter | `DevLab_RG` | `10.20.1.5` | No | Private Windows Server workload deployed using Terraform |
+| `Dev-win01` | Windows Server 2022 Datacenter | `DevLab_RG` | `10.20.1.5` | Yes — restricted RDP | Private Windows Server workload deployed using Terraform |
 | `Dev-data01` | Ubuntu 22.04 LTS | `DevLab_RG` | `10.20.2.4` | No | Private data-tier workload |
 
-`Prod-mgmt01` is the only virtual machine configured with a public administrative endpoint. All other virtual machines use private IP addressing without directly assigned public IP addresses.
+As of November 14, 2026, `Prod-mgmt01` retains its public SSH endpoint and `Dev-win01` has a static public IP with source-restricted RDP. The other three VMs remain private-only.
 
 Both Windows Server virtual machines use the `Standard_D2as_v7` VM size and the `2022-datacenter-g2` Azure Marketplace image.
 
@@ -144,7 +144,7 @@ Authenticated private RDP access to `Prod-win01` was validated on October 31, 20
 | Virtual Network | `Devlab_VNet` |
 | Subnet | `AppSubnet` |
 | Private IP | `10.20.1.5` |
-| Public IP Address | No |
+| Public IP Address | `138.91.123.223` (added Nov 14, 2026) |
 | Network Interface | `Dev-win01-nic` |
 | Deployment Method | Terraform |
 
@@ -156,11 +156,17 @@ The custom `AppSubnet_NSG` rule explicitly permits TCP/3389 from the management 
 
 However, the default `AllowVnetInBound` rule may also permit RDP from other internal sources across the peered VNets. Therefore, the custom rule does not exclusively limit all internal RDP traffic to the management VM.
 
-The validated administrative workflow uses an SSH tunnel through `Prod-mgmt01` to reach the private Windows Server desktop from macOS, without exposing RDP directly to the internet.
+The original October administrative workflow used an SSH tunnel through `Prod-mgmt01`. On November 14, 2026, direct Windows App RDP to `Dev-win01` was tested successfully using a static public IP restricted by Azure NSG and Windows Firewall rules. The tunnel remains a documented historical alternative.
 
 **Terraform documentation:** [Windows Server 2022 Deployment with Terraform](../../terraform/dev-windows-vm/README.md)
 
 **Connectivity documentation:** [Windows Server 2022 — Private Administration & Terraform](./windows-server-vms.md)
+
+## Updated Changes — November 14, 2026
+
+**Why:** I compared the original private SSH-tunnel workflow with a more convenient direct Windows App connection for routine Windows Server administration. The tunnel was secure but required extra setup and an active terminal session. I tested direct RDP to `Dev-win01` using static public IP `138.91.123.223`, with Azure NSG source restriction to home IPv4 `69.250.140.202/32`, guest Windows Firewall source restrictions, and Network Level Authentication. I preserved private IP `10.20.1.5`, VNet peering, and SSH to `Prod-mgmt01`. Authorized RDP and unauthorized-source NSG checks passed, direct Windows App login succeeded, and private connectivity tests confirmed intended allow/deny behavior. **This is a usability-versus-exposure tradeoff; public RDP has residual risk.**
+
+See [the detailed change log, validation, commands and rollback](./windows-server-vms.md#updated-changes--secure-rdp-access--ease-of-administration-november-14-2026).
 
 ## Administrative Access & Network Security
 
@@ -174,13 +180,13 @@ Linux workloads use SSH authentication and private network connectivity.
 
 ### Windows Administration
 
-Both Windows Server VMs are configured without public IP addresses.
+Originally both Windows Server VMs had no public IP addresses. As of November 14, 2026, `Dev-win01` has a restricted public RDP endpoint, while `Prod-win01` remains private-only.
 
 The `Dev-win01` Terraform configuration creates a source-specific RDP allow rule for the designated management VM. The effective NSG also contains Azure's default `AllowVnetInBound` rule, which may allow additional internal sources.
 
 On October 27, 2026, private RDP administration of `Dev-win01` was validated through SSH local port forwarding from macOS via `Prod-mgmt01`. On October 31, 2026, authenticated private RDP was validated again for `Dev-win01` and newly validated for `Prod-win01`.
 
-The validation included TCP/3389 connectivity, local SSH tunnel connectivity, authenticated Windows Server desktop access, and VM deallocation after testing.
+The October validation included TCP/3389 connectivity, local SSH tunnel connectivity, authenticated Windows Server desktop access, and VM deallocation after testing. The November change separately validated direct Windows App RDP and retained private networking.
 
 **Detailed validation:** [Windows Server 2022 VMs — Private Administration & Terraform](./windows-server-vms.md)
 
@@ -189,9 +195,9 @@ The validation included TCP/3389 connectivity, local SSH tunnel connectivity, au
 The environment uses:
 
 - Subnet-level Network Security Groups.
-- Private IP addressing for development workloads.
+- Private IP addressing for internal development communication, with a source-restricted public RDP endpoint on `Dev-win01`.
 - Bidirectional VNet peering.
-- Controlled administrative access through SSH and private RDP.
+- Controlled administrative access through SSH, private RDP, and source-restricted public RDP to `Dev-win01`.
 - Application-to-data traffic controls.
 - Separation between management, application, and data tiers.
 - Effective NSG inspection to verify custom and default rule behavior.
@@ -206,7 +212,7 @@ The compute environment supports practical exercises in Azure infrastructure ope
 | Networking | Private IP validation, subnet placement, VNet peering connectivity |
 | Security | NSG rule inspection, effective security rule analysis, administrative access validation |
 | Linux Administration | SSH authentication, agent forwarding, private SSH connectivity |
-| Windows Administration | Windows Server configuration, authenticated SSH-tunneled RDP to both Windows VMs, PowerShell OS/network/service/event/firewall diagnostics on Dev-win01 |
+| Windows Administration | Windows Server configuration, authenticated SSH-tunneled RDP to both Windows VMs, direct restricted public RDP to Dev-win01, PowerShell OS/network/service/event/firewall diagnostics |
 | Infrastructure as Code | Terraform initialization, validation, planning, and controlled deployment |
 | Troubleshooting | Network connectivity investigation, deployment errors, configuration issues |
 | Cost Management | VM deallocation, resource utilization review, cost-conscious lab operations |
